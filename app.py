@@ -195,6 +195,9 @@ with tab1:
 # =====================================================
 # 📂 BULK
 # =====================================================
+# =====================================================
+# 📂 BULK
+# =====================================================
 with tab2:
 
     st.subheader("Upload CSV")
@@ -212,37 +215,49 @@ with tab2:
         'CREDIT_SCORE': [700]
     })
 
-    st.download_button("Download Sample CSV", sample.to_csv(index=False), "sample.csv")
+    st.download_button("📥 Download Sample CSV", sample.to_csv(index=False), "sample.csv")
 
     file = st.file_uploader("Upload CSV", type=["csv"])
 
     if file:
-        df = pd.read_csv(file)
+        df_original = pd.read_csv(file)
+        df = df_original.copy()
 
         st.write("Preview")
-        st.dataframe(df.head())
+        st.dataframe(df_original.head())
 
         try:
+            # ---------------- CLEAN ---------------- #
+            for col in df.select_dtypes(include='object'):
+                df[col] = df[col].astype(str).str.title()
+
+            # Save original credit score
+            original_credit_score = df['CREDIT_SCORE'].copy()
+
+            # ---------------- ENCODE ---------------- #
             df = encode_dataframe(df)
 
+            # Transform credit score
             if 'CREDIT_SCORE' in df.columns:
                 df['CREDIT_SCORE'] = (900 - df['CREDIT_SCORE']) / 100
 
+            # Match features
             for col in feature_names:
                 if col not in df.columns:
                     df[col] = 0
 
             df = df[feature_names]
 
+            # Scale
             df_scaled = scaler.transform(df)
 
-            probs = model.predict_proba(df_scaled)[:,1]
+            probs = model.predict_proba(df_scaled)[:, 1]
 
             decisions, confidences, scores, reasons_list = [], [], [], []
 
             for i in range(len(df)):
                 income = df.iloc[i]['AMT_INCOME_TOTAL']
-                credit_score_raw = df.iloc[i]['CREDIT_SCORE'] * 100
+                credit_score_raw = original_credit_score.iloc[i]
                 emp = df.iloc[i]['EMPLOYMENT_YEARS']
                 fam = df.iloc[i]['CNT_FAM_MEMBERS']
                 age = df.iloc[i]['AGE']
@@ -251,6 +266,7 @@ with tab2:
 
                 score, reasons = calculate_score(income, credit_score_raw, emp, fam, age)
 
+                # FINAL DECISION
                 if income < 300000:
                     decision = "Rejected"
                     conf = prob * 0.3
@@ -265,19 +281,51 @@ with tab2:
                     conf = prob * 0.5
 
                 decisions.append(decision)
-                confidences.append(conf * 100)
+                confidences.append(round(conf * 100, 2))
                 scores.append(score)
                 reasons_list.append(", ".join(reasons))
 
-            df['Decision'] = decisions
-            df['Confidence (%)'] = confidences
-            df['Score'] = scores
-            df['Reasons'] = reasons_list
+            # ---------------- FINAL OUTPUT ---------------- #
+            result_df = df_original.copy()
 
-            st.success("Processed Successfully")
-            st.dataframe(df)
+            result_df['Decision'] = decisions
+            result_df['Confidence (%)'] = confidences
+            result_df['Score'] = scores
+            result_df['Reasons'] = reasons_list
 
-            st.bar_chart(df['Decision'].value_counts())
+            st.success("Processed Successfully ✅")
+
+            # ---------------- STYLE ---------------- #
+            def highlight(row):
+                if row['Decision'] == "Approved":
+                    return ['background-color: #d4edda'] * len(row)
+                elif row['Decision'] == "Rejected":
+                    return ['background-color: #f8d7da'] * len(row)
+                else:
+                    return ['background-color: #fff3cd'] * len(row)
+
+            st.dataframe(result_df.style.apply(highlight, axis=1))
+
+            # ---------------- DOWNLOAD BUTTON ---------------- #
+            csv = result_df.to_csv(index=False).encode('utf-8')
+
+            st.download_button(
+                "📥 Download Results CSV",
+                data=csv,
+                file_name="credit_results.csv",
+                mime="text/csv"
+            )
+
+            # ---------------- SUMMARY ---------------- #
+            st.markdown("### 📊 Summary")
+
+            col1, col2, col3 = st.columns(3)
+
+            col1.metric("Total", len(result_df))
+            col2.metric("Approved", (result_df['Decision'] == "Approved").sum())
+            col3.metric("Rejected", (result_df['Decision'] == "Rejected").sum())
+
+            st.bar_chart(result_df['Decision'].value_counts())
 
         except Exception as e:
             st.error(f"Error: {e}")
