@@ -304,7 +304,8 @@ with tab2:
                 else:
                     return ['background-color: #fff3cd'] * len(row)
 
-            st.dataframe(result_df.style.apply(highlight, axis=1))
+            # ✅ Keep exact UI (no styling)
+            st.dataframe(result_df)
 
             # ---------------- DOWNLOAD BUTTON ---------------- #
             csv = result_df.to_csv(index=False).encode('utf-8')
