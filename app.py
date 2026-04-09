@@ -40,42 +40,31 @@ def calculate_score(income, credit_score, employment_years, family_members, age)
         return 0, ["Income below ₹3L (auto reject)"]
 
     if income > 1000000:
-        score += 30
-        reasons.append("High income")
+        score += 30; reasons.append("High income")
     elif income > 500000:
-        score += 20
-        reasons.append("Moderate income")
+        score += 20; reasons.append("Moderate income")
     else:
-        score += 10
-        reasons.append("Low income")
+        score += 10; reasons.append("Low income")
 
     if credit_score > 750:
-        score += 30
-        reasons.append("Excellent credit score")
+        score += 30; reasons.append("Excellent credit score")
     elif credit_score > 650:
-        score += 20
-        reasons.append("Good credit score")
+        score += 20; reasons.append("Good credit score")
     else:
-        score += 10
-        reasons.append("Average credit score")
+        score += 10; reasons.append("Average credit score")
 
     if employment_years > 5:
-        score += 15
-        reasons.append("Stable job")
+        score += 15; reasons.append("Stable job")
     elif employment_years > 2:
-        score += 10
-        reasons.append("Moderate job stability")
+        score += 10; reasons.append("Moderate job stability")
 
     if family_members <= 3:
-        score += 15
-        reasons.append("Low financial burden")
+        score += 15; reasons.append("Low financial burden")
     else:
-        score += 5
-        reasons.append("High dependency")
+        score += 5; reasons.append("High dependency")
 
     if 25 <= age <= 55:
-        score += 10
-        reasons.append("Ideal working age")
+        score += 10; reasons.append("Ideal working age")
 
     return score, reasons
 
@@ -90,15 +79,12 @@ tab1, tab2, tab3 = st.tabs(["Individual", "Bulk Upload", "Data Visualization"])
 # =====================================================
 with tab1:
     col1, col2, col3 = st.columns(3)
-
     with col1:
         gender = select_box("Gender", encoders['CODE_GENDER'].classes_)
         income = st.number_input("Annual Income (₹)", min_value=0)
-
     with col2:
         income_type = select_box("Income Type", encoders['NAME_INCOME_TYPE'].classes_)
         education = select_box("Education", encoders['NAME_EDUCATION_TYPE'].classes_)
-
     with col3:
         family_status = select_box("Family Status", encoders['NAME_FAMILY_STATUS'].classes_)
         occupation = select_box("Occupation", encoders['OCCUPATION_TYPE'].classes_)
@@ -145,17 +131,13 @@ with tab1:
         score, reasons = calculate_score(income, credit_score, employment_years, family_members, age)
 
         if income < 300000:
-            decision = "Rejected"
-            final_conf = prob * 0.3
+            decision = "Rejected"; final_conf = prob * 0.3
         elif score >= 70:
-            decision = "Approved"
-            final_conf = prob
+            decision = "Approved"; final_conf = prob
         elif score >= 50:
-            decision = "Borderline"
-            final_conf = prob * 0.7
+            decision = "Borderline"; final_conf = prob * 0.7
         else:
-            decision = "Rejected"
-            final_conf = prob * 0.5
+            decision = "Rejected"; final_conf = prob * 0.5
 
         # ---------- DISPLAY RESULTS ----------
         st.markdown("## 🎯 Result")
@@ -170,22 +152,21 @@ with tab1:
         for r in reasons: st.write(f"✔ {r}")
 
         # ---------- VISUALIZATION IN INDIVIDUAL ----------
-       # ---------- VISUALIZATION IN INDIVIDUAL ----------
-st.markdown("### 📊 Your Profile Visualization")
-# Ensure all values are numeric
-vis_df = pd.DataFrame({
-    "Feature": ["Income (₹)", "Credit Score", "Employment Years", "Family Members", "Age"],
-    "Value": [float(income), float(credit_score), float(employment_years), float(family_members), float(age)]
-})
-
-fig, ax = plt.subplots(figsize=(8,4))
-sns.barplot(x="Feature", y="Value", data=vis_df, palette="coolwarm", ax=ax)
-ax.set_title("Your Numerical Profile")
-ax.set_ylabel("Value")
-ax.set_ylim(0, max(vis_df["Value"])*1.2)  # give some space at top
-for i, v in enumerate(vis_df["Value"]):
-    ax.text(i, v + max(vis_df["Value"])*0.02, str(v), ha='center')  # show value on top
-st.pyplot(fig)
+        st.markdown("### 📊 Your Numerical Profile")
+        features = {
+            "Income (₹)": income,
+            "Credit Score": credit_score,
+            "Employment Years": employment_years,
+            "Family Members": family_members,
+            "Age": age
+        }
+        for feat, val in features.items():
+            fig, ax = plt.subplots(figsize=(6,3))
+            sns.barplot(x=[feat], y=[val], palette="viridis", ax=ax)
+            ax.set_ylabel("Value")
+            ax.set_ylim(0, val*1.2)
+            for i, v in enumerate([val]): ax.text(i, v + val*0.02, str(v), ha='center')
+            st.pyplot(fig)
 
 # =====================================================
 # 📂 BULK UPLOAD
@@ -238,17 +219,13 @@ with tab2:
                 score, reasons = calculate_score(income, credit_score_raw, emp, fam, age)
 
                 if income < 300000:
-                    decision = "Rejected"
-                    conf = prob * 0.3
+                    decision = "Rejected"; conf = prob * 0.3
                 elif score >= 70:
-                    decision = "Approved"
-                    conf = prob
+                    decision = "Approved"; conf = prob
                 elif score >= 50:
-                    decision = "Borderline"
-                    conf = prob * 0.7
+                    decision = "Borderline"; conf = prob * 0.7
                 else:
-                    decision = "Rejected"
-                    conf = prob * 0.5
+                    decision = "Rejected"; conf = prob * 0.5
 
                 decisions.append(decision)
                 confidences.append(round(conf * 100, 2))
@@ -276,8 +253,7 @@ with tab2:
 # =====================================================
 with tab3:
     st.subheader("Explore Uploaded Dataset")
-
-    uploaded_file = st.file_uploader("Upload CSV for Visualization", type=["csv"])
+    uploaded_file = st.file_uploader("Upload CSV for Visualization", type=["csv"], key="vis")
     if uploaded_file:
         df = pd.read_csv(uploaded_file)
         st.write("Preview")
@@ -301,5 +277,5 @@ with tab3:
 
         st.markdown("### Pairplot")
         if len(num_cols) <= 5:
-            sns.pairplot(df[num_cols])
-            st.pyplot(plt)
+            pair_fig = sns.pairplot(df[num_cols])
+            st.pyplot(pair_fig)
