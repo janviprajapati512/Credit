@@ -10,7 +10,7 @@ st.set_page_config(page_title="CreditCheck AI", layout="wide")
 model = joblib.load("model.pkl")
 encoders = joblib.load("encoders.pkl")
 scaler = joblib.load("scaler.pkl")
-feature_names = joblib.load("features.pkl")  # ⭐ CRITICAL FIX
+feature_names = joblib.load("features.pkl")  # ⭐ IMPORTANT
 
 # ---------------- DATA URL ---------------- #
 APPLICATION_URL = "https://drive.google.com/uc?id=1NnkxG5dp4c_BGH_CBdYZzFGNjVtsF2BQ"
@@ -22,8 +22,12 @@ def load_data():
     except:
         df = pd.read_csv(APPLICATION_URL)
 
-    df['AGE'] = (-df['DAYS_BIRTH']) // 365
-    df['EMPLOYMENT_YEARS'] = (-df['DAYS_EMPLOYED']) // 365
+    # Feature engineering
+    if 'DAYS_BIRTH' in df.columns:
+        df['AGE'] = (-df['DAYS_BIRTH']) // 365
+
+    if 'DAYS_EMPLOYED' in df.columns:
+        df['EMPLOYMENT_YEARS'] = (-df['DAYS_EMPLOYED']) // 365
 
     return df
 
@@ -76,7 +80,7 @@ with tab1:
     employment_years = st.slider("Employment Years", 0, 40, 5)
     credit_score = st.slider("Credit Score", 300, 900, 650)
 
-    # Validation
+    # ---------------- VALIDATION ---------------- #
     errors = []
     if gender == "Select": errors.append("Gender")
     if income <= 0: errors.append("Income")
@@ -88,12 +92,11 @@ with tab1:
     if errors:
         st.warning("Fill all fields: " + ", ".join(errors))
 
-    # ---------------- PREDICT ---------------- #
+    # ---------------- ANALYZE ---------------- #
     if st.button("Analyze", disabled=len(errors) > 0):
 
         credit_score_model = (900 - credit_score) / 100
 
-        # ⭐ CREATE FULL FEATURE DICT
         input_dict = {
             'CODE_GENDER': safe_encode('CODE_GENDER', gender),
             'AMT_INCOME_TOTAL': income,
@@ -107,9 +110,17 @@ with tab1:
             'CREDIT_SCORE': credit_score_model
         }
 
-        # ⭐ MATCH TRAINING FEATURES EXACTLY
-        input_df = pd.DataFrame([input_dict])[feature_names]
+        input_df = pd.DataFrame([input_dict])
 
+        # ✅ FIX: ADD missing columns
+        for col in feature_names:
+            if col not in input_df.columns:
+                input_df[col] = 0
+
+        # ✅ FIX: ORDER columns
+        input_df = input_df[feature_names]
+
+        # SCALE
         input_scaled = scaler.transform(input_df)
 
         prob = model.predict_proba(input_scaled)[0][1]
@@ -117,11 +128,15 @@ with tab1:
 
         # RESULT
         st.markdown("## Result")
-        st.success(decision) if decision == "Approved" else st.error(decision)
+        if decision == "Approved":
+            st.success("Approved")
+        else:
+            st.error("Rejected")
+
         st.progress(int(prob * 100))
         st.write(f"Confidence: {prob*100:.2f}%")
 
-        # EXPLANATION
+        # ---------------- EXPLANATION ---------------- #
         st.markdown("## Explanation")
 
         if credit_score < 600:
@@ -131,16 +146,31 @@ with tab1:
         if employment_years < app_df['EMPLOYMENT_YEARS'].mean():
             st.write("• Low job stability")
 
-        # FEATURE IMPORTANCE
+        # ---------------- FEATURE IMPORTANCE ---------------- #
+        st.markdown("## Feature Importance")
+
         if hasattr(model, "feature_importances_"):
             fi = pd.Series(model.feature_importances_, index=feature_names)
             st.bar_chart(fi.sort_values(ascending=False).head(8))
 
-        # EDA
-        st.markdown("## 📊 EDA")
-        st.dataframe(app_df[['AMT_INCOME_TOTAL','AGE','EMPLOYMENT_YEARS']].describe())
-        st.bar_chart(app_df['AMT_INCOME_TOTAL'].head(50))
+        # ================== EDA ==================
+        st.markdown("## 📊 Data Analysis")
 
+        st.dataframe(app_df[['AMT_INCOME_TOTAL','AGE','EMPLOYMENT_YEARS']].describe())
+
+        colA, colB = st.columns(2)
+
+        with colA:
+            st.write("Income Distribution")
+            st.bar_chart(app_df['AMT_INCOME_TOTAL'].head(50))
+
+        with colB:
+            st.write("Age Distribution")
+            st.bar_chart(app_df['AGE'].value_counts())
+
+        st.subheader("Correlation")
+        corr = app_df.select_dtypes(include=np.number).corr()
+        st.dataframe(corr.style.background_gradient(cmap='Blues'))
 
 # =====================================================
 # 📂 TAB 2 - BULK
@@ -158,7 +188,13 @@ with tab2:
         df = pd.read_csv(file)
 
         try:
+            # ADD missing columns
+            for col in feature_names:
+                if col not in df.columns:
+                    df[col] = 0
+
             df = df[feature_names]
+
             df_scaled = scaler.transform(df)
 
             probs = model.predict_proba(df_scaled)[:,1]
