@@ -2,27 +2,18 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
-import matplotlib.pyplot as plt
-import seaborn as sns
 
 # ---------------- CONFIG ---------------- #
 st.set_page_config(page_title="CreditCheck AI", layout="wide")
 
-# ---------------- LOAD MODEL FILES ---------------- #
+# ---------------- LOAD FILES ---------------- #
 model = joblib.load("model.pkl")
 encoders = joblib.load("encoders.pkl")
 scaler = joblib.load("scaler.pkl")
 feature_names = joblib.load("features.pkl")
 
-# ---------------- LOAD DATASETS ---------------- #
-app_df = pd.read_csv("https://drive.google.com/uc?id=1NnkxG5dp4c_BGH_CBdYZzFGNjVtsF2BQ")
-credit_df = pd.read_csv("https://drive.google.com/uc?id=188CysjlnrPZcxA1YuiYJH64HU5xXgHiD")
-
-# Normalize columns
-app_df.columns = app_df.columns.str.strip().str.upper()
-credit_df.columns = credit_df.columns.str.strip().str.upper()
-
 # ---------------- HELPERS ---------------- #
+
 def safe_encode(col, value):
     le = encoders[col]
     if value in le.classes_:
@@ -39,11 +30,12 @@ def encode_dataframe(df):
 def select_box(label, options):
     return st.selectbox(label, ["Select"] + list(options))
 
-# ---------------- SCORING ---------------- #
+# ---------------- SCORING SYSTEM ---------------- #
 def calculate_score(income, credit_score, employment_years, family_members, age):
     score = 0
     reasons = []
 
+    # ❌ HARD RULE
     if income < 300000:
         return 0, ["Income below ₹3L (auto reject)"]
 
@@ -98,9 +90,11 @@ st.subheader("AI + Rule-Based Credit Approval System")
 
 tab1, tab2 = st.tabs(["Individual", "Bulk Upload"])
 
-# ================= INDIVIDUAL ================= #
+# =====================================================
+# 🧍 INDIVIDUAL
+# =====================================================
 with tab1:
-    st.markdown("### 🧍 Individual Analysis")
+
     col1, col2, col3 = st.columns(3)
 
     with col1:
@@ -132,6 +126,7 @@ with tab1:
         st.warning("Fill all fields: " + ", ".join(errors))
 
     if st.button("Analyze", disabled=len(errors) > 0):
+
         credit_score_model = (900 - credit_score) / 100
 
         input_dict = {
@@ -149,16 +144,21 @@ with tab1:
 
         input_df = pd.DataFrame([input_dict])
 
+        # Fix columns
         for col in feature_names:
             if col not in input_df.columns:
                 input_df[col] = 0
 
         input_df = input_df[feature_names]
+
         input_scaled = scaler.transform(input_df)
+
         prob = model.predict_proba(input_scaled)[0][1]
 
+        # ⭐ SCORING
         score, reasons = calculate_score(income, credit_score, employment_years, family_members, age)
 
+        # ⭐ FINAL DECISION
         if income < 300000:
             decision = "Rejected"
             final_conf = prob * 0.3
@@ -172,46 +172,36 @@ with tab1:
             decision = "Rejected"
             final_conf = prob * 0.5
 
+        # DISPLAY
         st.markdown("## 🎯 Result")
+
         if decision == "Approved":
             st.success("Approved")
         elif decision == "Rejected":
             st.error("Rejected")
         else:
             st.warning("Borderline")
+
         st.write(f"Confidence: {final_conf*100:.2f}%")
 
+        # SCORE
         st.markdown("### 🧠 Score Breakdown")
         st.progress(score)
         st.write(f"Score: {score}/100")
+
         for r in reasons:
             st.write(f"✔ {r}")
 
-        # ---------------- VISUAL INSIGHTS ---------------- #
-        st.markdown("## 📊 Individual Insights")
-        col1, col2 = st.columns(2)
-        col1.metric("Your Income", f"₹{income:,}")
-        col2.metric("Average Income", f"₹{int(app_df['AMT_INCOME_TOTAL'].mean()):,}")
-
-        col1, col2 = st.columns(2)
-        col1.metric("Your Age", age)
-        col2.metric("Average Age", int(app_df['AGE'].mean()))
-
-        # Bar comparison
-        compare_df = pd.DataFrame({
-            "Metric": ["Income", "Age", "Employment"],
-            "You": [income, age, employment_years],
-            "Average": [
-                app_df['AMT_INCOME_TOTAL'].mean(),
-                app_df['AGE'].mean(),
-                app_df['EMPLOYMENT_YEARS'].mean()
-            ]
-        })
-        st.bar_chart(compare_df.set_index("Metric"))
-
-# ================= BULK UPLOAD ================= #
+# =====================================================
+# 📂 BULK
+# =====================================================
+# =====================================================
+# 📂 BULK
+# =====================================================
 with tab2:
-    st.markdown("### 📂 Bulk Upload")
+
+    st.subheader("Upload CSV")
+
     sample = pd.DataFrame({
         'CODE_GENDER': ['M'],
         'AMT_INCOME_TOTAL': [500000],
@@ -226,31 +216,41 @@ with tab2:
     })
 
     st.download_button("📥 Download Sample CSV", sample.to_csv(index=False), "sample.csv")
+
     file = st.file_uploader("Upload CSV", type=["csv"])
 
     if file:
         df_original = pd.read_csv(file)
-        df_original.columns = df_original.columns.str.strip().str.upper()
         df = df_original.copy()
 
         st.write("Preview")
-        st.dataframe(df.head())
+        st.dataframe(df_original.head())
 
         try:
+            # ---------------- CLEAN ---------------- #
             for col in df.select_dtypes(include='object'):
                 df[col] = df[col].astype(str).str.title()
 
+            # Save original credit score
             original_credit_score = df['CREDIT_SCORE'].copy()
+
+            # ---------------- ENCODE ---------------- #
             df = encode_dataframe(df)
 
+            # Transform credit score
             if 'CREDIT_SCORE' in df.columns:
                 df['CREDIT_SCORE'] = (900 - df['CREDIT_SCORE']) / 100
 
+            # Match features
             for col in feature_names:
                 if col not in df.columns:
                     df[col] = 0
+
             df = df[feature_names]
+
+            # Scale
             df_scaled = scaler.transform(df)
+
             probs = model.predict_proba(df_scaled)[:, 1]
 
             decisions, confidences, scores, reasons_list = [], [], [], []
@@ -263,8 +263,10 @@ with tab2:
                 age = df.iloc[i]['AGE']
 
                 prob = probs[i]
+
                 score, reasons = calculate_score(income, credit_score_raw, emp, fam, age)
 
+                # FINAL DECISION
                 if income < 300000:
                     decision = "Rejected"
                     conf = prob * 0.3
@@ -283,37 +285,36 @@ with tab2:
                 scores.append(score)
                 reasons_list.append(", ".join(reasons))
 
+            # ---------------- FINAL OUTPUT ---------------- #
             result_df = df_original.copy()
+
             result_df['Decision'] = decisions
             result_df['Confidence (%)'] = confidences
             result_df['Score'] = scores
             result_df['Reasons'] = reasons_list
 
             st.success("Processed Successfully ✅")
+
+            # ---------------- STYLE ---------------- #
+            def highlight(row):
+                if row['Decision'] == "Approved":
+                    return ['background-color: #d4edda'] * len(row)
+                elif row['Decision'] == "Rejected":
+                    return ['background-color: #f8d7da'] * len(row)
+                else:
+                    return ['background-color: #fff3cd'] * len(row)
+
+            # ✅ Keep exact UI (no styling)
             st.dataframe(result_df)
 
+            # ---------------- DOWNLOAD BUTTON ---------------- #
             csv = result_df.to_csv(index=False).encode('utf-8')
-            st.download_button("📥 Download Results CSV", data=csv, file_name="credit_results.csv", mime="text/csv")
 
-            # ---------------- VISUAL BULK INSIGHTS ---------------- #
-            st.markdown("## 📊 Bulk Insights")
-            st.subheader("Decision Distribution")
-            st.bar_chart(result_df['Decision'].value_counts())
-
-            st.subheader("Income vs Employment by Decision")
-            fig, ax = plt.subplots()
-            sns.scatterplot(x='EMPLOYMENT_YEARS', y='AMT_INCOME_TOTAL', hue='Decision', data=result_df, palette="Set2", ax=ax)
-            st.pyplot(fig)
-
-            st.subheader("Credit Score vs Confidence")
-            fig2, ax2 = plt.subplots()
-            sns.scatterplot(x='CREDIT_SCORE', y='Confidence (%)', hue='Decision', data=result_df, palette="Set1", ax=ax2)
-            st.pyplot(fig2)
-
-            st.subheader("Family Members Impact")
-            fig3, ax3 = plt.subplots()
-            sns.scatterplot(x='CNT_FAM_MEMBERS', y='AMT_INCOME_TOTAL', hue='Decision', data=result_df, palette="Set2", ax=ax3)
-            st.pyplot(fig3)
-
+            st.download_button(
+                "📥 Download Results CSV",
+                data=csv,
+                file_name="credit_results.csv",
+                mime="text/csv"
+            )    
         except Exception as e:
             st.error(f"Error: {e}")
