@@ -10,9 +10,9 @@ st.set_page_config(page_title="CreditCheck AI", layout="wide")
 model = joblib.load("model.pkl")
 encoders = joblib.load("encoders.pkl")
 scaler = joblib.load("scaler.pkl")
-feature_names = joblib.load("features.pkl")  # ⭐ IMPORTANT
+feature_names = joblib.load("features.pkl")
 
-# ---------------- DATA URL ---------------- #
+# ---------------- DATA ---------------- #
 APPLICATION_URL = "https://drive.google.com/uc?id=1NnkxG5dp4c_BGH_CBdYZzFGNjVtsF2BQ"
 
 @st.cache_data
@@ -22,7 +22,6 @@ def load_data():
     except:
         df = pd.read_csv(APPLICATION_URL)
 
-    # Feature engineering
     if 'DAYS_BIRTH' in df.columns:
         df['AGE'] = (-df['DAYS_BIRTH']) // 365
 
@@ -40,15 +39,23 @@ def safe_encode(col, value):
         return le.transform([value])[0]
     return le.transform([le.classes_[0]])[0]
 
+def preprocess_input(df):
+    df = df.copy()
+
+    for col in df.columns:
+        if col in encoders:
+            le = encoders[col]
+            df[col] = df[col].astype(str)
+
+            df[col] = df[col].apply(
+                lambda x: le.transform([x])[0]
+                if x in le.classes_
+                else le.transform([le.classes_[0]])[0]
+            )
+    return df
+
 def select_box(label, options):
     return st.selectbox(label, ["Select"] + list(options))
-
-def format_inr(num):
-    if num >= 10000000:
-        return f"₹{num/10000000:.2f} Cr"
-    elif num >= 100000:
-        return f"₹{num/100000:.2f} L"
-    return f"₹{num:,.0f}"
 
 # ---------------- UI ---------------- #
 st.title("💳 CreditCheck AI")
@@ -57,7 +64,7 @@ st.subheader("AI-Based Credit Approval System")
 tab1, tab2 = st.tabs(["🧍 Individual", "📂 Bulk Upload"])
 
 # =====================================================
-# 🧍 TAB 1 - INDIVIDUAL
+# 🧍 INDIVIDUAL
 # =====================================================
 with tab1:
 
@@ -80,7 +87,7 @@ with tab1:
     employment_years = st.slider("Employment Years", 0, 40, 5)
     credit_score = st.slider("Credit Score", 300, 900, 650)
 
-    # ---------------- VALIDATION ---------------- #
+    # VALIDATION
     errors = []
     if gender == "Select": errors.append("Gender")
     if income <= 0: errors.append("Income")
@@ -92,7 +99,7 @@ with tab1:
     if errors:
         st.warning("Fill all fields: " + ", ".join(errors))
 
-    # ---------------- ANALYZE ---------------- #
+    # ANALYZE
     if st.button("Analyze", disabled=len(errors) > 0):
 
         credit_score_model = (900 - credit_score) / 100
@@ -112,12 +119,11 @@ with tab1:
 
         input_df = pd.DataFrame([input_dict])
 
-        # ✅ FIX: ADD missing columns
+        # Ensure all columns
         for col in feature_names:
             if col not in input_df.columns:
                 input_df[col] = 0
 
-        # ✅ FIX: ORDER columns
         input_df = input_df[feature_names]
 
         # SCALE
@@ -136,44 +142,34 @@ with tab1:
         st.progress(int(prob * 100))
         st.write(f"Confidence: {prob*100:.2f}%")
 
-        # ---------------- EXPLANATION ---------------- #
+        # EXPLANATION
         st.markdown("## Explanation")
 
         if credit_score < 600:
             st.write("• Low credit score")
+
         if income < app_df['AMT_INCOME_TOTAL'].mean():
             st.write("• Income below average")
+
         if employment_years < app_df['EMPLOYMENT_YEARS'].mean():
             st.write("• Low job stability")
 
-        # ---------------- FEATURE IMPORTANCE ---------------- #
+        # FEATURE IMPORTANCE
         st.markdown("## Feature Importance")
 
         if hasattr(model, "feature_importances_"):
             fi = pd.Series(model.feature_importances_, index=feature_names)
             st.bar_chart(fi.sort_values(ascending=False).head(8))
 
-        # ================== EDA ==================
+        # EDA
         st.markdown("## 📊 Data Analysis")
 
         st.dataframe(app_df[['AMT_INCOME_TOTAL','AGE','EMPLOYMENT_YEARS']].describe())
 
-        colA, colB = st.columns(2)
-
-        with colA:
-            st.write("Income Distribution")
-            st.bar_chart(app_df['AMT_INCOME_TOTAL'].head(50))
-
-        with colB:
-            st.write("Age Distribution")
-            st.bar_chart(app_df['AGE'].value_counts())
-
-        st.subheader("Correlation")
-        corr = app_df.select_dtypes(include=np.number).corr()
-        st.dataframe(corr.style.background_gradient(cmap='Blues'))
+        st.bar_chart(app_df['AGE'].value_counts())
 
 # =====================================================
-# 📂 TAB 2 - BULK
+# 📂 BULK UPLOAD
 # =====================================================
 with tab2:
 
@@ -188,16 +184,21 @@ with tab2:
         df = pd.read_csv(file)
 
         try:
-            # ADD missing columns
+            # ✅ ENCODE
+            df = preprocess_input(df)
+
+            # ✅ ADD MISSING COLS
             for col in feature_names:
                 if col not in df.columns:
                     df[col] = 0
 
             df = df[feature_names]
 
+            # SCALE
             df_scaled = scaler.transform(df)
 
             probs = model.predict_proba(df_scaled)[:,1]
+
             df['Prediction'] = np.where(probs > 0.65, "Approved", "Rejected")
             df['Confidence'] = probs
 
