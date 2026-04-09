@@ -1,129 +1,320 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
+import joblib
 
-# ---------------- PAGE CONFIG ---------------- #
-st.set_page_config(page_title="CreditCheck AI - Advanced EDA", layout="wide")
-st.title("📊 CreditCheck AI - Advanced Exploratory Data Analysis")
+# ---------------- CONFIG ---------------- #
+st.set_page_config(page_title="CreditCheck AI", layout="wide")
 
-# ---------------- LOAD DATA ---------------- #
-st.sidebar.header("Select Dataset")
-dataset_option = st.sidebar.selectbox("Dataset", ["App Dataset", "Credit Dataset"])
+# ---------------- LOAD FILES ---------------- #
+model = joblib.load("model.pkl")
+encoders = joblib.load("encoders.pkl")
+scaler = joblib.load("scaler.pkl")
+feature_names = joblib.load("features.pkl")
 
-if dataset_option == "App Dataset":
-    df = pd.read_csv("https://drive.google.com/uc?id=1NnkxG5dp4c_BGH_CBdYZzFGNjVtsF2BQ")
-else:
-    df = pd.read_csv("https://drive.google.com/uc?id=188CysjlnrPZcxA1YuiYJH64HU5xXgHiD")
+# ---------------- HELPERS ---------------- #
 
-df.columns = df.columns.str.strip().str.upper()
+def safe_encode(col, value):
+    le = encoders[col]
+    if value in le.classes_:
+        return le.transform([value])[0]
+    return le.transform([le.classes_[0]])[0]
 
-st.subheader(f"Dataset: {dataset_option}")
-st.write("Preview of data:")
-st.dataframe(df.head())
+def encode_dataframe(df):
+    for col in encoders:
+        if col in df.columns:
+            df[col] = df[col].astype(str)
+            df[col] = df[col].apply(lambda x: safe_encode(col, x))
+    return df
 
-# ---------------- BASIC STATISTICS ---------------- #
-st.subheader("🧮 Basic Statistics")
-st.write("Shape of dataset:", df.shape)
-st.write("Columns:", list(df.columns))
-st.write("Missing values per column:")
-st.dataframe(df.isnull().sum())
-st.write("Data types:")
-st.dataframe(df.dtypes)
+def select_box(label, options):
+    return st.selectbox(label, ["Select"] + list(options))
 
-st.write("Descriptive statistics for numerical columns:")
-st.dataframe(df.describe())
+# ---------------- SCORING SYSTEM ---------------- #
+def calculate_score(income, credit_score, employment_years, family_members, age):
+    score = 0
+    reasons = []
 
-# ---------------- INTERACTIVE FILTERS ---------------- #
-st.sidebar.header("Filter Data")
-filters = {}
-for col in df.select_dtypes(include=['object']).columns:
-    options = df[col].dropna().unique().tolist()
-    selected = st.sidebar.multiselect(f"Filter {col}", options, default=options)
-    filters[col] = selected
-    df = df[df[col].isin(selected)]
+    # ❌ HARD RULE
+    if income < 300000:
+        return 0, ["Income below ₹3L (auto reject)"]
 
-st.subheader("Filtered Dataset Preview")
-st.dataframe(df.head())
+    # Income
+    if income > 1000000:
+        score += 30
+        reasons.append("High income")
+    elif income > 500000:
+        score += 20
+        reasons.append("Moderate income")
+    else:
+        score += 10
+        reasons.append("Low income")
 
-# ---------------- NUMERICAL DISTRIBUTIONS ---------------- #
-st.subheader("📈 Numerical Features Distribution")
-numeric_cols = df.select_dtypes(include=['int64', 'float64']).columns.tolist()
-for col in numeric_cols:
-    st.write(f"**{col}**")
-    fig, ax = plt.subplots()
-    sns.histplot(df[col], kde=True, bins=30, color="skyblue", ax=ax)
-    st.pyplot(fig)
+    # Credit Score
+    if credit_score > 750:
+        score += 30
+        reasons.append("Excellent credit score")
+    elif credit_score > 650:
+        score += 20
+        reasons.append("Good credit score")
+    else:
+        score += 10
+        reasons.append("Average credit score")
 
-# ---------------- CATEGORICAL DISTRIBUTION ---------------- #
-st.subheader("📊 Categorical Features Distribution")
-categorical_cols = df.select_dtypes(include=['object']).columns.tolist()
-for col in categorical_cols:
-    st.write(f"**{col}**")
-    fig, ax = plt.subplots()
-    sns.countplot(x=col, data=df, order=df[col].value_counts().index, palette="Set2", ax=ax)
-    plt.xticks(rotation=45)
-    st.pyplot(fig)
+    # Employment
+    if employment_years > 5:
+        score += 15
+        reasons.append("Stable job")
+    elif employment_years > 2:
+        score += 10
+        reasons.append("Moderate job stability")
 
-# ---------------- BOXPLOTS & VIOLIN PLOTS ---------------- #
-st.subheader("📦 Boxplots & Violin Plots (Numerical by Category)")
-if categorical_cols and numeric_cols:
-    for num_col in numeric_cols:
-        for cat_col in categorical_cols:
-            st.write(f"**{num_col} by {cat_col}**")
-            fig, axes = plt.subplots(1,2, figsize=(12,4))
-            sns.boxplot(x=cat_col, y=num_col, data=df, ax=axes[0], palette="Set3")
-            sns.violinplot(x=cat_col, y=num_col, data=df, ax=axes[1], palette="Set2")
-            axes[0].tick_params(axis='x', rotation=45)
-            axes[1].tick_params(axis='x', rotation=45)
-            st.pyplot(fig)
+    # Family
+    if family_members <= 3:
+        score += 15
+        reasons.append("Low financial burden")
+    else:
+        score += 5
+        reasons.append("High dependency")
 
-# ---------------- OUTLIER DETECTION ---------------- #
-st.subheader("⚠️ Outlier Detection (Numerical Features)")
-for col in numeric_cols:
-    q1 = df[col].quantile(0.25)
-    q3 = df[col].quantile(0.75)
-    iqr = q3 - q1
-    outliers = df[(df[col] < q1 - 1.5*iqr) | (df[col] > q3 + 1.5*iqr)]
-    st.write(f"{col} has {len(outliers)} outliers")
-    if not outliers.empty:
-        st.dataframe(outliers[[col]].head())
+    # Age
+    if 25 <= age <= 55:
+        score += 10
+        reasons.append("Ideal working age")
 
-# ---------------- CORRELATION HEATMAP ---------------- #
-st.subheader("🧩 Correlation Heatmap (Numerical Features)")
-if len(numeric_cols) >= 2:
-    fig, ax = plt.subplots(figsize=(10,6))
-    sns.heatmap(df[numeric_cols].corr(), annot=True, fmt=".2f", cmap="coolwarm", ax=ax)
-    st.pyplot(fig)
+    return score, reasons
 
-# ---------------- PAIR PLOTS ---------------- #
-st.subheader("🔗 Pair Plot (Numerical Features)")
-if len(numeric_cols) >= 2:
-    sns.set(style="ticks")
-    fig = sns.pairplot(df[numeric_cols])
-    st.pyplot(fig)
+# ---------------- UI ---------------- #
+st.title("💳 CreditCheck AI")
+st.subheader("AI + Rule-Based Credit Approval System")
 
-# ---------------- GROUP COMPARISON ---------------- #
-st.subheader("👥 Group Comparison")
-if 'DECISION' in df.columns:
-    for num_col in numeric_cols:
-        st.write(f"**{num_col} by Decision**")
-        fig, ax = plt.subplots()
-        sns.boxplot(x='DECISION', y=num_col, data=df, palette="Set2", ax=ax)
-        st.pyplot(fig)
+tab1, tab2 = st.tabs(["Individual", "Bulk Upload"])
 
-# ---------------- CUSTOM INSIGHTS ---------------- #
-st.subheader("💡 Insights")
-if 'CREDIT_SCORE' in df.columns:
-    st.write(f"Average Credit Score: {df['CREDIT_SCORE'].mean():.2f}")
-    st.write(f"Min Credit Score: {df['CREDIT_SCORE'].min()}")
-    st.write(f"Max Credit Score: {df['CREDIT_SCORE'].max()}")
+# =====================================================
+# 🧍 INDIVIDUAL
+# =====================================================
+with tab1:
 
-if 'AMT_INCOME_TOTAL' in df.columns:
-    st.write(f"Average Income: ₹{df['AMT_INCOME_TOTAL'].mean():,.0f}")
-    st.write(f"Income Range: ₹{df['AMT_INCOME_TOTAL'].min():,.0f} - ₹{df['AMT_INCOME_TOTAL'].max():,.0f}")
+    col1, col2, col3 = st.columns(3)
 
-if 'AGE' in df.columns:
-    st.write(f"Average Age: {df['AGE'].mean():.2f}")
-    st.write(f"Age Range: {df['AGE'].min()} - {df['AGE'].max()}")
+    with col1:
+        gender = select_box("Gender", encoders['CODE_GENDER'].classes_)
+        income = st.number_input("Annual Income (₹)", min_value=0)
+
+    with col2:
+        income_type = select_box("Income Type", encoders['NAME_INCOME_TYPE'].classes_)
+        education = select_box("Education", encoders['NAME_EDUCATION_TYPE'].classes_)
+
+    with col3:
+        family_status = select_box("Family Status", encoders['NAME_FAMILY_STATUS'].classes_)
+        occupation = select_box("Occupation", encoders['OCCUPATION_TYPE'].classes_)
+
+    family_members = st.slider("Family Members", 1, 10, 2)
+    age = st.slider("Age", 18, 70, 30)
+    employment_years = st.slider("Employment Years", 0, 40, 5)
+    credit_score = st.slider("Credit Score", 300, 900, 650)
+
+    errors = []
+    if gender == "Select": errors.append("Gender")
+    if income <= 0: errors.append("Income")
+    if income_type == "Select": errors.append("Income Type")
+    if education == "Select": errors.append("Education")
+    if family_status == "Select": errors.append("Family Status")
+    if occupation == "Select": errors.append("Occupation")
+
+    if errors:
+        st.warning("Fill all fields: " + ", ".join(errors))
+
+    if st.button("Analyze", disabled=len(errors) > 0):
+
+        credit_score_model = (900 - credit_score) / 100
+
+        input_dict = {
+            'CODE_GENDER': safe_encode('CODE_GENDER', gender),
+            'AMT_INCOME_TOTAL': income,
+            'NAME_INCOME_TYPE': safe_encode('NAME_INCOME_TYPE', income_type),
+            'NAME_EDUCATION_TYPE': safe_encode('NAME_EDUCATION_TYPE', education),
+            'NAME_FAMILY_STATUS': safe_encode('NAME_FAMILY_STATUS', family_status),
+            'OCCUPATION_TYPE': safe_encode('OCCUPATION_TYPE', occupation),
+            'CNT_FAM_MEMBERS': family_members,
+            'AGE': age,
+            'EMPLOYMENT_YEARS': employment_years,
+            'CREDIT_SCORE': credit_score_model
+        }
+
+        input_df = pd.DataFrame([input_dict])
+
+        # Fix columns
+        for col in feature_names:
+            if col not in input_df.columns:
+                input_df[col] = 0
+
+        input_df = input_df[feature_names]
+
+        input_scaled = scaler.transform(input_df)
+
+        prob = model.predict_proba(input_scaled)[0][1]
+
+        # ⭐ SCORING
+        score, reasons = calculate_score(income, credit_score, employment_years, family_members, age)
+
+        # ⭐ FINAL DECISION
+        if income < 300000:
+            decision = "Rejected"
+            final_conf = prob * 0.3
+        elif score >= 70:
+            decision = "Approved"
+            final_conf = prob
+        elif score >= 50:
+            decision = "Borderline"
+            final_conf = prob * 0.7
+        else:
+            decision = "Rejected"
+            final_conf = prob * 0.5
+
+        # DISPLAY
+        st.markdown("## 🎯 Result")
+
+        if decision == "Approved":
+            st.success("Approved")
+        elif decision == "Rejected":
+            st.error("Rejected")
+        else:
+            st.warning("Borderline")
+
+        st.write(f"Confidence: {final_conf*100:.2f}%")
+
+        # SCORE
+        st.markdown("### 🧠 Score Breakdown")
+        st.progress(score)
+        st.write(f"Score: {score}/100")
+
+        for r in reasons:
+            st.write(f"✔ {r}")
+
+# =====================================================
+# 📂 BULK
+# =====================================================
+# =====================================================
+# 📂 BULK
+# =====================================================
+with tab2:
+
+    st.subheader("Upload CSV")
+
+    sample = pd.DataFrame({
+        'CODE_GENDER': ['M'],
+        'AMT_INCOME_TOTAL': [500000],
+        'NAME_INCOME_TYPE': ['Working'],
+        'NAME_EDUCATION_TYPE': ['Higher education'],
+        'NAME_FAMILY_STATUS': ['Married'],
+        'OCCUPATION_TYPE': ['Managers'],
+        'CNT_FAM_MEMBERS': [2],
+        'AGE': [30],
+        'EMPLOYMENT_YEARS': [5],
+        'CREDIT_SCORE': [700]
+    })
+
+    st.download_button("📥 Download Sample CSV", sample.to_csv(index=False), "sample.csv")
+
+    file = st.file_uploader("Upload CSV", type=["csv"])
+
+    if file:
+        df_original = pd.read_csv(file)
+        df = df_original.copy()
+
+        st.write("Preview")
+        st.dataframe(df_original.head())
+
+        try:
+            # ---------------- CLEAN ---------------- #
+            for col in df.select_dtypes(include='object'):
+                df[col] = df[col].astype(str).str.title()
+
+            # Save original credit score
+            original_credit_score = df['CREDIT_SCORE'].copy()
+
+            # ---------------- ENCODE ---------------- #
+            df = encode_dataframe(df)
+
+            # Transform credit score
+            if 'CREDIT_SCORE' in df.columns:
+                df['CREDIT_SCORE'] = (900 - df['CREDIT_SCORE']) / 100
+
+            # Match features
+            for col in feature_names:
+                if col not in df.columns:
+                    df[col] = 0
+
+            df = df[feature_names]
+
+            # Scale
+            df_scaled = scaler.transform(df)
+
+            probs = model.predict_proba(df_scaled)[:, 1]
+
+            decisions, confidences, scores, reasons_list = [], [], [], []
+
+            for i in range(len(df)):
+                income = df.iloc[i]['AMT_INCOME_TOTAL']
+                credit_score_raw = original_credit_score.iloc[i]
+                emp = df.iloc[i]['EMPLOYMENT_YEARS']
+                fam = df.iloc[i]['CNT_FAM_MEMBERS']
+                age = df.iloc[i]['AGE']
+
+                prob = probs[i]
+
+                score, reasons = calculate_score(income, credit_score_raw, emp, fam, age)
+
+                # FINAL DECISION
+                if income < 300000:
+                    decision = "Rejected"
+                    conf = prob * 0.3
+                elif score >= 70:
+                    decision = "Approved"
+                    conf = prob
+                elif score >= 50:
+                    decision = "Borderline"
+                    conf = prob * 0.7
+                else:
+                    decision = "Rejected"
+                    conf = prob * 0.5
+
+                decisions.append(decision)
+                confidences.append(round(conf * 100, 2))
+                scores.append(score)
+                reasons_list.append(", ".join(reasons))
+
+            # ---------------- FINAL OUTPUT ---------------- #
+            result_df = df_original.copy()
+
+            result_df['Decision'] = decisions
+            result_df['Confidence (%)'] = confidences
+            result_df['Score'] = scores
+            result_df['Reasons'] = reasons_list
+
+            st.success("Processed Successfully ✅")
+
+            # ---------------- STYLE ---------------- #
+            def highlight(row):
+                if row['Decision'] == "Approved":
+                    return ['background-color: #d4edda'] * len(row)
+                elif row['Decision'] == "Rejected":
+                    return ['background-color: #f8d7da'] * len(row)
+                else:
+                    return ['background-color: #fff3cd'] * len(row)
+
+            # ✅ Keep exact UI (no styling)
+            st.dataframe(result_df)
+
+            # ---------------- DOWNLOAD BUTTON ---------------- #
+            csv = result_df.to_csv(index=False).encode('utf-8')
+
+            st.download_button(
+                "📥 Download Results CSV",
+                data=csv,
+                file_name="credit_results.csv",
+                mime="text/csv"
+            )    
+        except Exception as e:
+            st.error(f"Error: {e}")
