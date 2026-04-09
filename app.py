@@ -170,16 +170,22 @@ with tab1:
         for r in reasons: st.write(f"✔ {r}")
 
         # ---------- VISUALIZATION IN INDIVIDUAL ----------
-        st.markdown("### 📊 Your Profile Visualization")
-        vis_df = pd.DataFrame({
-            "Feature": ["Income (₹)", "Credit Score", "Employment Years", "Family Members", "Age"],
-            "Value": [income, credit_score, employment_years, family_members, age]
-        })
-        fig, ax = plt.subplots(figsize=(8,4))
-        sns.barplot(x="Feature", y="Value", data=vis_df, palette="coolwarm", ax=ax)
-        ax.set_title("Your Numerical Profile")
-        ax.set_ylabel("Value")
-        st.pyplot(fig)
+       # ---------- VISUALIZATION IN INDIVIDUAL ----------
+st.markdown("### 📊 Your Profile Visualization")
+# Ensure all values are numeric
+vis_df = pd.DataFrame({
+    "Feature": ["Income (₹)", "Credit Score", "Employment Years", "Family Members", "Age"],
+    "Value": [float(income), float(credit_score), float(employment_years), float(family_members), float(age)]
+})
+
+fig, ax = plt.subplots(figsize=(8,4))
+sns.barplot(x="Feature", y="Value", data=vis_df, palette="coolwarm", ax=ax)
+ax.set_title("Your Numerical Profile")
+ax.set_ylabel("Value")
+ax.set_ylim(0, max(vis_df["Value"])*1.2)  # give some space at top
+for i, v in enumerate(vis_df["Value"]):
+    ax.text(i, v + max(vis_df["Value"])*0.02, str(v), ha='center')  # show value on top
+st.pyplot(fig)
 
 # =====================================================
 # 📂 BULK UPLOAD
