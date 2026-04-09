@@ -10,34 +10,29 @@ st.set_page_config(page_title="CreditCheck AI", layout="wide")
 model = joblib.load("model.pkl")
 encoders = joblib.load("encoders.pkl")
 scaler = joblib.load("scaler.pkl")
-feature_importance = pd.read_csv("feature_importance.csv", index_col=0)
 
 # ---------------- GOOGLE DRIVE LINKS ---------------- #
 APPLICATION_URL = "https://drive.google.com/uc?id=1NnkxG5dp4c_BGH_CBdYZzFGNjVtsF2BQ"
-CREDIT_URL = "https://drive.google.com/uc?id=188CysjlnrPZcxA1YuiYJH64HU5xXgHiD"
 
 # ---------------- LOAD DATA ---------------- #
 @st.cache_data
 def load_data():
     try:
-        app = pd.read_csv("application_record.csv")
-        credit = pd.read_csv("credit_record.csv")
+        df = pd.read_csv("application_record.csv")
     except:
-        app = pd.read_csv(APPLICATION_URL)
-        credit = pd.read_csv(CREDIT_URL)
+        df = pd.read_csv(APPLICATION_URL)
 
-    # Feature engineering
-    if 'DAYS_BIRTH' in app.columns:
-        app['AGE'] = (-app['DAYS_BIRTH']) // 365
+    if 'DAYS_BIRTH' in df.columns:
+        df['AGE'] = (-df['DAYS_BIRTH']) // 365
 
-    if 'DAYS_EMPLOYED' in app.columns:
-        app['EMPLOYMENT_YEARS'] = (-app['DAYS_EMPLOYED']) // 365
+    if 'DAYS_EMPLOYED' in df.columns:
+        df['EMPLOYMENT_YEARS'] = (-df['DAYS_EMPLOYED']) // 365
 
-    return app, credit
+    return df
 
-app_df, credit_df = load_data()
+app_df = load_data()
 
-# ---------------- FORMAT INR ---------------- #
+# ---------------- INR FORMAT ---------------- #
 def format_inr(num):
     if num >= 10000000:
         return f"₹{num/10000000:.2f} Cr"
@@ -53,6 +48,16 @@ def safe_encode(col, value):
         return le.transform([value])[0]
     return le.transform([le.classes_[0]])[0]
 
+# ---------------- FEATURE IMPORTANCE ---------------- #
+def get_feature_importance(model, columns):
+    if hasattr(model, "feature_importances_"):
+        return pd.Series(model.feature_importances_, index=columns).sort_values(ascending=False)
+    return None
+
+# ---------------- SELECT BOX ---------------- #
+def select_box(label, options):
+    return st.selectbox(label, ["Select"] + list(options))
+
 # ---------------- UI ---------------- #
 st.title("💳 CreditCheck AI")
 st.subheader("AI-Based Credit Risk & Approval System")
@@ -60,25 +65,41 @@ st.subheader("AI-Based Credit Risk & Approval System")
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    gender = st.selectbox("Gender", encoders['CODE_GENDER'].classes_)
+    gender = select_box("Gender", encoders['CODE_GENDER'].classes_)
     income = st.number_input("Annual Income (₹)", min_value=0)
 
 with col2:
-    income_type = st.selectbox("Income Type", encoders['NAME_INCOME_TYPE'].classes_)
-    education = st.selectbox("Education", encoders['NAME_EDUCATION_TYPE'].classes_)
+    income_type = select_box("Income Type", encoders['NAME_INCOME_TYPE'].classes_)
+    education = select_box("Education", encoders['NAME_EDUCATION_TYPE'].classes_)
 
 with col3:
-    family_status = st.selectbox("Family Status", encoders['NAME_FAMILY_STATUS'].classes_)
-    occupation = st.selectbox("Occupation", encoders['OCCUPATION_TYPE'].classes_)
+    family_status = select_box("Family Status", encoders['NAME_FAMILY_STATUS'].classes_)
+    occupation = select_box("Occupation", encoders['OCCUPATION_TYPE'].classes_)
 
 family_members = st.slider("Family Members", 1, 10, 2)
 age = st.slider("Age", 18, 70, 30)
 employment_years = st.slider("Employment Years", 0, 40, 5)
 
-valid = income > 0
+# ⭐ NEW: CREDIT SCORE
+credit_score = st.slider("Credit Score", 300, 900, 650)
+
+# ---------------- VALIDATION ---------------- #
+errors = []
+if gender == "Select": errors.append("Gender")
+if income <= 0: errors.append("Income")
+if income_type == "Select": errors.append("Income Type")
+if education == "Select": errors.append("Education")
+if family_status == "Select": errors.append("Family Status")
+if occupation == "Select": errors.append("Occupation")
+
+if errors:
+    st.warning("Please fill: " + ", ".join(errors))
 
 # ---------------- ANALYZE ---------------- #
-if st.button("Analyze", disabled=not valid):
+if st.button("Analyze", disabled=len(errors) > 0):
+
+    # Convert credit score (same logic as training)
+    credit_score_model = (900 - credit_score) / 100
 
     input_df = pd.DataFrame([[
         safe_encode('CODE_GENDER', gender),
@@ -89,11 +110,12 @@ if st.button("Analyze", disabled=not valid):
         safe_encode('OCCUPATION_TYPE', occupation),
         family_members,
         age,
-        employment_years
+        employment_years,
+        credit_score_model
     ]], columns=[
         'CODE_GENDER','AMT_INCOME_TOTAL','NAME_INCOME_TYPE',
         'NAME_EDUCATION_TYPE','NAME_FAMILY_STATUS',
-        'OCCUPATION_TYPE','CNT_FAM_MEMBERS','AGE','EMPLOYMENT_YEARS'
+        'OCCUPATION_TYPE','CNT_FAM_MEMBERS','AGE','EMPLOYMENT_YEARS','CREDIT_SCORE'
     ])
 
     input_scaled = scaler.transform(input_df)
@@ -104,6 +126,7 @@ if st.button("Analyze", disabled=not valid):
 
     # ---------------- RESULT ---------------- #
     st.markdown("## Result")
+
     if decision == "Approved":
         st.success("Approved")
     else:
@@ -114,6 +137,9 @@ if st.button("Analyze", disabled=not valid):
 
     # ---------------- EXPLANATION ---------------- #
     st.markdown("## Explanation")
+
+    if credit_score < 600:
+        st.write("• Low credit score increases risk")
 
     if income < app_df['AMT_INCOME_TOTAL'].mean():
         st.write("• Income below average")
@@ -126,49 +152,19 @@ if st.button("Analyze", disabled=not valid):
 
     # ---------------- FEATURE IMPORTANCE ---------------- #
     st.markdown("## Feature Importance")
-    st.bar_chart(feature_importance.head(8))
+
+    feature_names = [
+        'CODE_GENDER','AMT_INCOME_TOTAL','NAME_INCOME_TYPE',
+        'NAME_EDUCATION_TYPE','NAME_FAMILY_STATUS',
+        'OCCUPATION_TYPE','CNT_FAM_MEMBERS','AGE','EMPLOYMENT_YEARS','CREDIT_SCORE'
+    ]
+
+    fi = get_feature_importance(model, feature_names)
+
+    if fi is not None:
+        st.bar_chart(fi.head(8))
 
     # ================== EDA ==================
     st.markdown("## 📊 Data Analysis")
 
-    st.subheader("Statistical Summary")
     st.dataframe(app_df[['AMT_INCOME_TOTAL','AGE','EMPLOYMENT_YEARS','CNT_FAM_MEMBERS']].describe())
-
-    colA, colB = st.columns(2)
-
-    with colA:
-        st.write("Income Distribution")
-        st.bar_chart(app_df['AMT_INCOME_TOTAL'].value_counts().head(50))
-
-    with colB:
-        st.write("Age Distribution")
-        st.bar_chart(app_df['AGE'].value_counts())
-
-    st.subheader("Correlation Heatmap")
-    corr = app_df.select_dtypes(include=np.number).corr()
-    st.dataframe(corr.style.background_gradient(cmap='Blues'))
-
-    # ---------------- COMPARISON ---------------- #
-    st.subheader("Your Profile vs Dataset")
-
-    c1, c2 = st.columns(2)
-
-    with c1:
-        st.metric("Your Income", format_inr(income))
-        st.metric("Avg Income", format_inr(int(app_df['AMT_INCOME_TOTAL'].mean())))
-
-    with c2:
-        st.metric("Your Age", age)
-        st.metric("Avg Age", int(app_df['AGE'].mean()))
-
-    compare = pd.DataFrame({
-        "Metric": ["Income","Age","Employment"],
-        "You": [income, age, employment_years],
-        "Average": [
-            app_df['AMT_INCOME_TOTAL'].mean(),
-            app_df['AGE'].mean(),
-            app_df['EMPLOYMENT_YEARS'].mean()
-        ]
-    })
-
-    st.bar_chart(compare.set_index("Metric"))
