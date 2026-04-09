@@ -10,54 +10,46 @@ st.set_page_config(page_title="CreditCheck AI", layout="wide")
 model = joblib.load("model.pkl")
 encoders = joblib.load("encoders.pkl")
 scaler = joblib.load("scaler.pkl")
-feature_names = joblib.load("features.pkl")  # ⭐ IMPORTANT
-
-# ---------------- DATA URL ---------------- #
-APPLICATION_URL = "https://drive.google.com/uc?id=1NnkxG5dp4c_BGH_CBdYZzFGNjVtsF2BQ"
-
-@st.cache_data
-def load_data():
-    try:
-        df = pd.read_csv("application_record.csv")
-    except:
-        df = pd.read_csv(APPLICATION_URL)
-
-    # Feature engineering
-    if 'DAYS_BIRTH' in df.columns:
-        df['AGE'] = (-df['DAYS_BIRTH']) // 365
-
-    if 'DAYS_EMPLOYED' in df.columns:
-        df['EMPLOYMENT_YEARS'] = (-df['DAYS_EMPLOYED']) // 365
-
-    return df
-
-app_df = load_data()
+feature_names = joblib.load("features.pkl")
 
 # ---------------- HELPERS ---------------- #
+
 def safe_encode(col, value):
     le = encoders[col]
     if value in le.classes_:
         return le.transform([value])[0]
     return le.transform([le.classes_[0]])[0]
 
+def encode_dataframe(df):
+    for col in encoders:
+        if col in df.columns:
+            df[col] = df[col].astype(str)
+            df[col] = df[col].apply(lambda x: safe_encode(col, x))
+    return df
+
 def select_box(label, options):
     return st.selectbox(label, ["Select"] + list(options))
 
-def format_inr(num):
-    if num >= 10000000:
-        return f"₹{num/10000000:.2f} Cr"
-    elif num >= 100000:
-        return f"₹{num/100000:.2f} L"
-    return f"₹{num:,.0f}"
+# ⭐ BUSINESS RULE
+def apply_business_rules(income, prob):
+    if income < 300000:
+        return "Rejected", prob, "Income below ₹3L (auto reject rule)"
+    
+    if prob > 0.65:
+        return "Approved", prob, "Model approved"
+    elif prob < 0.45:
+        return "Rejected", prob, "Model rejected"
+    else:
+        return "Borderline", prob, "Manual review suggested"
 
 # ---------------- UI ---------------- #
 st.title("💳 CreditCheck AI")
-st.subheader("AI-Based Credit Approval System")
+st.subheader("AI + Rule-Based Credit Approval System")
 
 tab1, tab2 = st.tabs(["🧍 Individual", "📂 Bulk Upload"])
 
 # =====================================================
-# 🧍 TAB 1 - INDIVIDUAL
+# 🧍 INDIVIDUAL
 # =====================================================
 with tab1:
 
@@ -65,7 +57,7 @@ with tab1:
 
     with col1:
         gender = select_box("Gender", encoders['CODE_GENDER'].classes_)
-        income = st.number_input("Income (₹)", min_value=0)
+        income = st.number_input("Annual Income (₹)", min_value=0)
 
     with col2:
         income_type = select_box("Income Type", encoders['NAME_INCOME_TYPE'].classes_)
@@ -80,7 +72,6 @@ with tab1:
     employment_years = st.slider("Employment Years", 0, 40, 5)
     credit_score = st.slider("Credit Score", 300, 900, 650)
 
-    # ---------------- VALIDATION ---------------- #
     errors = []
     if gender == "Select": errors.append("Gender")
     if income <= 0: errors.append("Income")
@@ -92,7 +83,6 @@ with tab1:
     if errors:
         st.warning("Fill all fields: " + ", ".join(errors))
 
-    # ---------------- ANALYZE ---------------- #
     if st.button("Analyze", disabled=len(errors) > 0):
 
         credit_score_model = (900 - credit_score) / 100
@@ -112,74 +102,53 @@ with tab1:
 
         input_df = pd.DataFrame([input_dict])
 
-        # ✅ FIX: ADD missing columns
+        # Fix columns
         for col in feature_names:
             if col not in input_df.columns:
                 input_df[col] = 0
 
-        # ✅ FIX: ORDER columns
         input_df = input_df[feature_names]
 
-        # SCALE
+        # Scale
         input_scaled = scaler.transform(input_df)
 
         prob = model.predict_proba(input_scaled)[0][1]
-        decision = "Approved" if prob > 0.65 else "Rejected"
 
-        # RESULT
+        # ⭐ APPLY RULE
+        decision, prob, reason = apply_business_rules(income, prob)
+
         st.markdown("## Result")
+
         if decision == "Approved":
             st.success("Approved")
-        else:
+        elif decision == "Rejected":
             st.error("Rejected")
+        else:
+            st.warning("Borderline")
 
-        st.progress(int(prob * 100))
         st.write(f"Confidence: {prob*100:.2f}%")
-
-        # ---------------- EXPLANATION ---------------- #
-        st.markdown("## Explanation")
-
-        if credit_score < 600:
-            st.write("• Low credit score")
-        if income < app_df['AMT_INCOME_TOTAL'].mean():
-            st.write("• Income below average")
-        if employment_years < app_df['EMPLOYMENT_YEARS'].mean():
-            st.write("• Low job stability")
-
-        # ---------------- FEATURE IMPORTANCE ---------------- #
-        st.markdown("## Feature Importance")
-
-        if hasattr(model, "feature_importances_"):
-            fi = pd.Series(model.feature_importances_, index=feature_names)
-            st.bar_chart(fi.sort_values(ascending=False).head(8))
-
-        # ================== EDA ==================
-        st.markdown("## 📊 Data Analysis")
-
-        st.dataframe(app_df[['AMT_INCOME_TOTAL','AGE','EMPLOYMENT_YEARS']].describe())
-
-        colA, colB = st.columns(2)
-
-        with colA:
-            st.write("Income Distribution")
-            st.bar_chart(app_df['AMT_INCOME_TOTAL'].head(50))
-
-        with colB:
-            st.write("Age Distribution")
-            st.bar_chart(app_df['AGE'].value_counts())
-
-        st.subheader("Correlation")
-        corr = app_df.select_dtypes(include=np.number).corr()
-        st.dataframe(corr.style.background_gradient(cmap='Blues'))
+        st.write(f"Reason: {reason}")
 
 # =====================================================
-# 📂 TAB 2 - BULK
+# 📂 BULK
 # =====================================================
 with tab2:
 
-    st.subheader("Upload CSV for Bulk Prediction")
+    st.subheader("Upload CSV")
 
-    sample = pd.DataFrame(columns=feature_names)
+    sample = pd.DataFrame({
+        'CODE_GENDER': ['M'],
+        'AMT_INCOME_TOTAL': [500000],
+        'NAME_INCOME_TYPE': ['Working'],
+        'NAME_EDUCATION_TYPE': ['Higher education'],
+        'NAME_FAMILY_STATUS': ['Married'],
+        'OCCUPATION_TYPE': ['Managers'],
+        'CNT_FAM_MEMBERS': [2],
+        'AGE': [30],
+        'EMPLOYMENT_YEARS': [5],
+        'CREDIT_SCORE': [700]
+    })
+
     st.download_button("Download Sample CSV", sample.to_csv(index=False), "sample.csv")
 
     file = st.file_uploader("Upload CSV", type=["csv"])
@@ -187,24 +156,46 @@ with tab2:
     if file:
         df = pd.read_csv(file)
 
+        st.write("Preview")
+        st.dataframe(df.head())
+
         try:
-            # ADD missing columns
+            # Encode
+            df = encode_dataframe(df)
+
+            # Credit score transform
+            if 'CREDIT_SCORE' in df.columns:
+                df['CREDIT_SCORE'] = (900 - df['CREDIT_SCORE']) / 100
+
+            # Fix columns
             for col in feature_names:
                 if col not in df.columns:
                     df[col] = 0
 
             df = df[feature_names]
 
+            # Scale
             df_scaled = scaler.transform(df)
 
             probs = model.predict_proba(df_scaled)[:,1]
-            df['Prediction'] = np.where(probs > 0.65, "Approved", "Rejected")
-            df['Confidence'] = probs
+
+            decisions = []
+            reasons = []
+
+            for i in range(len(df)):
+                income = df.iloc[i]['AMT_INCOME_TOTAL']
+                d, p, r = apply_business_rules(income, probs[i])
+                decisions.append(d)
+                reasons.append(r)
+
+            df['Decision'] = decisions
+            df['Confidence'] = probs * 100
+            df['Reason'] = reasons
 
             st.success("Processed Successfully")
             st.dataframe(df)
 
-            st.bar_chart(df['Prediction'].value_counts())
+            st.bar_chart(df['Decision'].value_counts())
 
         except Exception as e:
             st.error(f"Error: {e}")
