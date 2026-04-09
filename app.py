@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
+import matplotlib.pyplot as plt
 
 # ---------------- CONFIG ---------------- #
 st.set_page_config(page_title="CreditCheck AI", layout="wide")
@@ -330,3 +331,63 @@ with tab2:
 
         except Exception as e:
             st.error(f"Error: {e}")
+# =====================================================
+# 📊 EDA VISUALIZATION
+# =====================================================
+
+st.markdown("## 📊 Data Analysis & Insights")
+
+# ---------------- INCOME DISTRIBUTION ---------------- #
+st.subheader("Income Distribution")
+
+fig1, ax1 = plt.subplots()
+ax1.hist(result_df['AMT_INCOME_TOTAL'], bins=20)
+ax1.set_xlabel("Income")
+ax1.set_ylabel("Count")
+st.pyplot(fig1)
+
+
+# ---------------- CREDIT SCORE ---------------- #
+if 'CREDIT_SCORE' in result_df.columns:
+    st.subheader("Credit Score Distribution")
+
+    fig2, ax2 = plt.subplots()
+    ax2.hist(result_df['CREDIT_SCORE'], bins=20)
+    ax2.set_xlabel("Credit Score")
+    st.pyplot(fig2)
+
+
+# ---------------- FAMILY VS INCOME ---------------- #
+st.subheader("Family Members vs Income")
+
+fig3, ax3 = plt.subplots()
+ax3.scatter(result_df['CNT_FAM_MEMBERS'], result_df['AMT_INCOME_TOTAL'])
+ax3.set_xlabel("Family Members")
+ax3.set_ylabel("Income")
+st.pyplot(fig3)
+
+
+# ---------------- DECISION DISTRIBUTION ---------------- #
+st.subheader("Decision Distribution")
+
+st.bar_chart(result_df['Decision'].value_counts())
+
+
+# ---------------- CORRELATION ---------------- #
+st.subheader("Correlation Heatmap")
+
+numeric_df = result_df.select_dtypes(include=np.number)
+
+if not numeric_df.empty:
+    corr = numeric_df.corr()
+
+    fig4, ax4 = plt.subplots()
+    cax = ax4.matshow(corr)
+    fig4.colorbar(cax)
+
+    ax4.set_xticks(range(len(corr.columns)))
+    ax4.set_yticks(range(len(corr.columns)))
+    ax4.set_xticklabels(corr.columns, rotation=90)
+    ax4.set_yticklabels(corr.columns)
+
+    st.pyplot(fig4)
