@@ -326,7 +326,7 @@ with tab2:
             col2.metric("Approved", (result_df['Decision'] == "Approved").sum())
             col3.metric("Rejected", (result_df['Decision'] == "Rejected").sum())
 
-            st.bar_chart(result_df['Decision'].value_counts())
+           # st.bar_chart(result_df['Decision'].value_counts())
 
         except Exception as e:
             st.error(f"Error: {e}")
