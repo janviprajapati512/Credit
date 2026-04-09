@@ -30,17 +30,59 @@ def encode_dataframe(df):
 def select_box(label, options):
     return st.selectbox(label, ["Select"] + list(options))
 
-# ⭐ BUSINESS RULE
-def apply_business_rules(income, prob):
+# ---------------- SCORING SYSTEM ---------------- #
+def calculate_score(income, credit_score, employment_years, family_members, age):
+    score = 0
+    reasons = []
+
+    # ❌ HARD RULE
     if income < 300000:
-        return "Rejected", prob, "Income below ₹3L (auto reject rule)"
-    
-    if prob > 0.65:
-        return "Approved", prob, "Model approved"
-    elif prob < 0.45:
-        return "Rejected", prob, "Model rejected"
+        return 0, ["Income below ₹3L (auto reject)"]
+
+    # Income
+    if income > 1000000:
+        score += 30
+        reasons.append("High income")
+    elif income > 500000:
+        score += 20
+        reasons.append("Moderate income")
     else:
-        return "Borderline", prob, "Manual review suggested"
+        score += 10
+        reasons.append("Low income")
+
+    # Credit Score
+    if credit_score > 750:
+        score += 30
+        reasons.append("Excellent credit score")
+    elif credit_score > 650:
+        score += 20
+        reasons.append("Good credit score")
+    else:
+        score += 10
+        reasons.append("Average credit score")
+
+    # Employment
+    if employment_years > 5:
+        score += 15
+        reasons.append("Stable job")
+    elif employment_years > 2:
+        score += 10
+        reasons.append("Moderate job stability")
+
+    # Family
+    if family_members <= 3:
+        score += 15
+        reasons.append("Low financial burden")
+    else:
+        score += 5
+        reasons.append("High dependency")
+
+    # Age
+    if 25 <= age <= 55:
+        score += 10
+        reasons.append("Ideal working age")
+
+    return score, reasons
 
 # ---------------- UI ---------------- #
 st.title("💳 CreditCheck AI")
@@ -109,15 +151,29 @@ with tab1:
 
         input_df = input_df[feature_names]
 
-        # Scale
         input_scaled = scaler.transform(input_df)
 
         prob = model.predict_proba(input_scaled)[0][1]
 
-        # ⭐ APPLY RULE
-        decision, prob, reason = apply_business_rules(income, prob)
+        # ⭐ SCORING
+        score, reasons = calculate_score(income, credit_score, employment_years, family_members, age)
 
-        st.markdown("## Result")
+        # ⭐ FINAL DECISION
+        if income < 300000:
+            decision = "Rejected"
+            final_conf = prob * 0.3
+        elif score >= 70:
+            decision = "Approved"
+            final_conf = prob
+        elif score >= 50:
+            decision = "Borderline"
+            final_conf = prob * 0.7
+        else:
+            decision = "Rejected"
+            final_conf = prob * 0.5
+
+        # DISPLAY
+        st.markdown("## 🎯 Result")
 
         if decision == "Approved":
             st.success("Approved")
@@ -126,8 +182,15 @@ with tab1:
         else:
             st.warning("Borderline")
 
-        st.write(f"Confidence: {prob*100:.2f}%")
-        st.write(f"Reason: {reason}")
+        st.write(f"Confidence: {final_conf*100:.2f}%")
+
+        # SCORE
+        st.markdown("### 🧠 Score Breakdown")
+        st.progress(score)
+        st.write(f"Score: {score}/100")
+
+        for r in reasons:
+            st.write(f"✔ {r}")
 
 # =====================================================
 # 📂 BULK
@@ -160,37 +223,56 @@ with tab2:
         st.dataframe(df.head())
 
         try:
-            # Encode
             df = encode_dataframe(df)
 
-            # Credit score transform
             if 'CREDIT_SCORE' in df.columns:
                 df['CREDIT_SCORE'] = (900 - df['CREDIT_SCORE']) / 100
 
-            # Fix columns
             for col in feature_names:
                 if col not in df.columns:
                     df[col] = 0
 
             df = df[feature_names]
 
-            # Scale
             df_scaled = scaler.transform(df)
 
             probs = model.predict_proba(df_scaled)[:,1]
 
-            decisions = []
-            reasons = []
+            decisions, confidences, scores, reasons_list = [], [], [], []
 
             for i in range(len(df)):
                 income = df.iloc[i]['AMT_INCOME_TOTAL']
-                d, p, r = apply_business_rules(income, probs[i])
-                decisions.append(d)
-                reasons.append(r)
+                credit_score_raw = df.iloc[i]['CREDIT_SCORE'] * 100
+                emp = df.iloc[i]['EMPLOYMENT_YEARS']
+                fam = df.iloc[i]['CNT_FAM_MEMBERS']
+                age = df.iloc[i]['AGE']
+
+                prob = probs[i]
+
+                score, reasons = calculate_score(income, credit_score_raw, emp, fam, age)
+
+                if income < 300000:
+                    decision = "Rejected"
+                    conf = prob * 0.3
+                elif score >= 70:
+                    decision = "Approved"
+                    conf = prob
+                elif score >= 50:
+                    decision = "Borderline"
+                    conf = prob * 0.7
+                else:
+                    decision = "Rejected"
+                    conf = prob * 0.5
+
+                decisions.append(decision)
+                confidences.append(conf * 100)
+                scores.append(score)
+                reasons_list.append(", ".join(reasons))
 
             df['Decision'] = decisions
-            df['Confidence'] = probs * 100
-            df['Reason'] = reasons
+            df['Confidence (%)'] = confidences
+            df['Score'] = scores
+            df['Reasons'] = reasons_list
 
             st.success("Processed Successfully")
             st.dataframe(df)
