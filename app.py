@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 # ---------------- CONFIG ---------------- #
 st.set_page_config(page_title="CreditCheck AI", layout="wide")
@@ -13,7 +15,6 @@ scaler = joblib.load("scaler.pkl")
 feature_names = joblib.load("features.pkl")
 
 # ---------------- HELPERS ---------------- #
-
 def safe_encode(col, value):
     le = encoders[col]
     if value in le.classes_:
@@ -35,7 +36,6 @@ def calculate_score(income, credit_score, employment_years, family_members, age)
     score = 0
     reasons = []
 
-    # ❌ HARD RULE
     if income < 300000:
         return 0, ["Income below ₹3L (auto reject)"]
 
@@ -88,7 +88,7 @@ def calculate_score(income, credit_score, employment_years, family_members, age)
 st.title("💳 CreditCheck AI")
 st.subheader("AI + Rule-Based Credit Approval System")
 
-tab1, tab2 = st.tabs(["Individual", "Bulk Upload"])
+tab1, tab2, tab3 = st.tabs(["Individual", "Bulk Upload", "Data Visualization"])
 
 # =====================================================
 # 🧍 INDIVIDUAL
@@ -144,7 +144,6 @@ with tab1:
 
         input_df = pd.DataFrame([input_dict])
 
-        # Fix columns
         for col in feature_names:
             if col not in input_df.columns:
                 input_df[col] = 0
@@ -155,10 +154,8 @@ with tab1:
 
         prob = model.predict_proba(input_scaled)[0][1]
 
-        # ⭐ SCORING
         score, reasons = calculate_score(income, credit_score, employment_years, family_members, age)
 
-        # ⭐ FINAL DECISION
         if income < 300000:
             decision = "Rejected"
             final_conf = prob * 0.3
@@ -172,29 +169,17 @@ with tab1:
             decision = "Rejected"
             final_conf = prob * 0.5
 
-        # DISPLAY
         st.markdown("## 🎯 Result")
-
-        if decision == "Approved":
-            st.success("Approved")
-        elif decision == "Rejected":
-            st.error("Rejected")
-        else:
-            st.warning("Borderline")
-
+        if decision == "Approved": st.success("Approved")
+        elif decision == "Rejected": st.error("Rejected")
+        else: st.warning("Borderline")
         st.write(f"Confidence: {final_conf*100:.2f}%")
 
-        # SCORE
         st.markdown("### 🧠 Score Breakdown")
         st.progress(score)
         st.write(f"Score: {score}/100")
+        for r in reasons: st.write(f"✔ {r}")
 
-        for r in reasons:
-            st.write(f"✔ {r}")
-
-# =====================================================
-# 📂 BULK
-# =====================================================
 # =====================================================
 # 📂 BULK
 # =====================================================
@@ -222,99 +207,94 @@ with tab2:
     if file:
         df_original = pd.read_csv(file)
         df = df_original.copy()
-
         st.write("Preview")
         st.dataframe(df_original.head())
 
         try:
-            # ---------------- CLEAN ---------------- #
             for col in df.select_dtypes(include='object'):
                 df[col] = df[col].astype(str).str.title()
 
-            # Save original credit score
             original_credit_score = df['CREDIT_SCORE'].copy()
-
-            # ---------------- ENCODE ---------------- #
             df = encode_dataframe(df)
-
-            # Transform credit score
             if 'CREDIT_SCORE' in df.columns:
                 df['CREDIT_SCORE'] = (900 - df['CREDIT_SCORE']) / 100
 
-            # Match features
             for col in feature_names:
                 if col not in df.columns:
                     df[col] = 0
-
             df = df[feature_names]
-
-            # Scale
             df_scaled = scaler.transform(df)
-
             probs = model.predict_proba(df_scaled)[:, 1]
 
             decisions, confidences, scores, reasons_list = [], [], [], []
-
             for i in range(len(df)):
                 income = df.iloc[i]['AMT_INCOME_TOTAL']
                 credit_score_raw = original_credit_score.iloc[i]
                 emp = df.iloc[i]['EMPLOYMENT_YEARS']
                 fam = df.iloc[i]['CNT_FAM_MEMBERS']
                 age = df.iloc[i]['AGE']
-
                 prob = probs[i]
-
                 score, reasons = calculate_score(income, credit_score_raw, emp, fam, age)
-
-                # FINAL DECISION
                 if income < 300000:
-                    decision = "Rejected"
-                    conf = prob * 0.3
+                    decision = "Rejected"; conf = prob*0.3
                 elif score >= 70:
-                    decision = "Approved"
-                    conf = prob
+                    decision = "Approved"; conf = prob
                 elif score >= 50:
-                    decision = "Borderline"
-                    conf = prob * 0.7
+                    decision = "Borderline"; conf = prob*0.7
                 else:
-                    decision = "Rejected"
-                    conf = prob * 0.5
-
+                    decision = "Rejected"; conf = prob*0.5
                 decisions.append(decision)
-                confidences.append(round(conf * 100, 2))
+                confidences.append(round(conf*100,2))
                 scores.append(score)
                 reasons_list.append(", ".join(reasons))
 
-            # ---------------- FINAL OUTPUT ---------------- #
             result_df = df_original.copy()
-
             result_df['Decision'] = decisions
             result_df['Confidence (%)'] = confidences
             result_df['Score'] = scores
             result_df['Reasons'] = reasons_list
 
             st.success("Processed Successfully ✅")
-
-            # ---------------- STYLE ---------------- #
-            def highlight(row):
-                if row['Decision'] == "Approved":
-                    return ['background-color: #d4edda'] * len(row)
-                elif row['Decision'] == "Rejected":
-                    return ['background-color: #f8d7da'] * len(row)
-                else:
-                    return ['background-color: #fff3cd'] * len(row)
-
-            # ✅ Keep exact UI (no styling)
             st.dataframe(result_df)
-
-            # ---------------- DOWNLOAD BUTTON ---------------- #
             csv = result_df.to_csv(index=False).encode('utf-8')
+            st.download_button("📥 Download Results CSV", data=csv, file_name="credit_results.csv", mime="text/csv")
 
-            st.download_button(
-                "📥 Download Results CSV",
-                data=csv,
-                file_name="credit_results.csv",
-                mime="text/csv"
-            )    
-        except Exception as e:
+        except Exception as e:  
             st.error(f"Error: {e}")
+
+# =====================================================
+# 📊 DATA VISUALIZATION TAB
+# =====================================================
+with tab3:
+    st.subheader("📊 Data Visualization of Numerical Features")
+
+    # Load either uploaded CSV (bulk) or sample for visualization
+    if 'df_original' in locals():
+        vis_df = df_original.copy()
+    else:
+        st.info("Upload a CSV in Bulk Upload tab to see visualizations.")
+        vis_df = pd.DataFrame()  # empty
+
+    if not vis_df.empty:
+        num_cols = ['AMT_INCOME_TOTAL', 'AGE', 'CREDIT_SCORE', 'CNT_FAM_MEMBERS', 'EMPLOYMENT_YEARS']
+        available_cols = [col for col in num_cols if col in vis_df.columns]
+
+        for col in available_cols:
+            st.write(f"**{col} Distribution**")
+            fig, ax = plt.subplots()
+            sns.histplot(vis_df[col], kde=True, bins=30, color="skyblue", ax=ax)
+            st.pyplot(fig)
+
+        st.subheader("Boxplots to check outliers")
+        for col in available_cols:
+            st.write(f"**{col} Boxplot**")
+            fig, ax = plt.subplots()
+            sns.boxplot(x=vis_df[col], color="lightgreen", ax=ax)
+            st.pyplot(fig)
+
+        st.subheader("Pairplots to see relationships")
+        pair_cols = available_cols[:4]  # pairplot for first 4 numeric columns
+        if len(pair_cols) >= 2:
+            sns.set(style="ticks")
+            fig = sns.pairplot(vis_df[pair_cols])
+            st.pyplot(fig)
