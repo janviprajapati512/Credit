@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
-import matplotlib.pyplot as plt
 
 # ---------------- CONFIG ---------------- #
 st.set_page_config(page_title="CreditCheck AI", layout="wide")
@@ -11,58 +10,92 @@ st.set_page_config(page_title="CreditCheck AI", layout="wide")
 model = joblib.load("model.pkl")
 encoders = joblib.load("encoders.pkl")
 scaler = joblib.load("scaler.pkl")
-feature_names = joblib.load("features.pkl")
+feature_names = joblib.load("features.pkl")  # ⭐ IMPORTANT
+
+# ---------------- DATA URL ---------------- #
+APPLICATION_URL = "https://drive.google.com/uc?id=1NnkxG5dp4c_BGH_CBdYZzFGNjVtsF2BQ"
+
+@st.cache_data
+def load_data():
+    try:
+        df = pd.read_csv("application_record.csv")
+    except:
+        df = pd.read_csv(APPLICATION_URL)
+
+    # Feature engineering
+    if 'DAYS_BIRTH' in df.columns:
+        df['AGE'] = (-df['DAYS_BIRTH']) // 365
+
+    if 'DAYS_EMPLOYED' in df.columns:
+        df['EMPLOYMENT_YEARS'] = (-df['DAYS_EMPLOYED']) // 365
+
+    return df
+
+app_df = load_data()
 
 # ---------------- HELPERS ---------------- #
-
 def safe_encode(col, value):
     le = encoders[col]
     if value in le.classes_:
         return le.transform([value])[0]
     return le.transform([le.classes_[0]])[0]
 
-def preprocess_input(df):
-    df = df.copy()
+def select_box(label, options):
+    return st.selectbox(label, ["Select"] + list(options))
 
-    for col in df.columns:
-        if col in encoders:
-            le = encoders[col]
-            df[col] = df[col].astype(str)
-
-            df[col] = df[col].apply(
-                lambda x: le.transform([x])[0]
-                if x in le.classes_
-                else le.transform([le.classes_[0]])[0]
-            )
-    return df
-
-def transform_credit(score):
-    # same logic as training
-    return (900 - score) / 100
+def format_inr(num):
+    if num >= 10000000:
+        return f"₹{num/10000000:.2f} Cr"
+    elif num >= 100000:
+        return f"₹{num/100000:.2f} L"
+    return f"₹{num:,.0f}"
 
 # ---------------- UI ---------------- #
 st.title("💳 CreditCheck AI")
+st.subheader("AI-Based Credit Approval System")
 
 tab1, tab2 = st.tabs(["🧍 Individual", "📂 Bulk Upload"])
 
 # =====================================================
-# 🧍 INDIVIDUAL
+# 🧍 TAB 1 - INDIVIDUAL
 # =====================================================
 with tab1:
 
-    gender = st.selectbox("Gender", encoders['CODE_GENDER'].classes_)
-    income = st.number_input("Income", min_value=0)
-    income_type = st.selectbox("Income Type", encoders['NAME_INCOME_TYPE'].classes_)
-    education = st.selectbox("Education", encoders['NAME_EDUCATION_TYPE'].classes_)
-    family_status = st.selectbox("Family Status", encoders['NAME_FAMILY_STATUS'].classes_)
-    occupation = st.selectbox("Occupation", encoders['OCCUPATION_TYPE'].classes_)
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        gender = select_box("Gender", encoders['CODE_GENDER'].classes_)
+        income = st.number_input("Income (₹)", min_value=0)
+
+    with col2:
+        income_type = select_box("Income Type", encoders['NAME_INCOME_TYPE'].classes_)
+        education = select_box("Education", encoders['NAME_EDUCATION_TYPE'].classes_)
+
+    with col3:
+        family_status = select_box("Family Status", encoders['NAME_FAMILY_STATUS'].classes_)
+        occupation = select_box("Occupation", encoders['OCCUPATION_TYPE'].classes_)
 
     family_members = st.slider("Family Members", 1, 10, 2)
     age = st.slider("Age", 18, 70, 30)
     employment_years = st.slider("Employment Years", 0, 40, 5)
     credit_score = st.slider("Credit Score", 300, 900, 650)
 
-    if st.button("Predict"):
+    # ---------------- VALIDATION ---------------- #
+    errors = []
+    if gender == "Select": errors.append("Gender")
+    if income <= 0: errors.append("Income")
+    if income_type == "Select": errors.append("Income Type")
+    if education == "Select": errors.append("Education")
+    if family_status == "Select": errors.append("Family Status")
+    if occupation == "Select": errors.append("Occupation")
+
+    if errors:
+        st.warning("Fill all fields: " + ", ".join(errors))
+
+    # ---------------- ANALYZE ---------------- #
+    if st.button("Analyze", disabled=len(errors) > 0):
+
+        credit_score_model = (900 - credit_score) / 100
 
         input_dict = {
             'CODE_GENDER': safe_encode('CODE_GENDER', gender),
@@ -74,31 +107,77 @@ with tab1:
             'CNT_FAM_MEMBERS': family_members,
             'AGE': age,
             'EMPLOYMENT_YEARS': employment_years,
-            'CREDIT_SCORE': transform_credit(credit_score)
+            'CREDIT_SCORE': credit_score_model
         }
 
-        df = pd.DataFrame([input_dict])
+        input_df = pd.DataFrame([input_dict])
 
-        # Align features
+        # ✅ FIX: ADD missing columns
         for col in feature_names:
-            if col not in df.columns:
-                df[col] = 0
+            if col not in input_df.columns:
+                input_df[col] = 0
 
-        df = df[feature_names]
+        # ✅ FIX: ORDER columns
+        input_df = input_df[feature_names]
 
-        df_scaled = scaler.transform(df)
+        # SCALE
+        input_scaled = scaler.transform(input_df)
 
-        prob = model.predict_proba(df_scaled)[0][1]
+        prob = model.predict_proba(input_scaled)[0][1]
+        decision = "Approved" if prob > 0.65 else "Rejected"
 
-        st.success("Approved" if prob > 0.65 else "Rejected")
+        # RESULT
+        st.markdown("## Result")
+        if decision == "Approved":
+            st.success("Approved")
+        else:
+            st.error("Rejected")
+
+        st.progress(int(prob * 100))
         st.write(f"Confidence: {prob*100:.2f}%")
 
+        # ---------------- EXPLANATION ---------------- #
+        st.markdown("## Explanation")
+
+        if credit_score < 600:
+            st.write("• Low credit score")
+        if income < app_df['AMT_INCOME_TOTAL'].mean():
+            st.write("• Income below average")
+        if employment_years < app_df['EMPLOYMENT_YEARS'].mean():
+            st.write("• Low job stability")
+
+        # ---------------- FEATURE IMPORTANCE ---------------- #
+        st.markdown("## Feature Importance")
+
+        if hasattr(model, "feature_importances_"):
+            fi = pd.Series(model.feature_importances_, index=feature_names)
+            st.bar_chart(fi.sort_values(ascending=False).head(8))
+
+        # ================== EDA ==================
+        st.markdown("## 📊 Data Analysis")
+
+        st.dataframe(app_df[['AMT_INCOME_TOTAL','AGE','EMPLOYMENT_YEARS']].describe())
+
+        colA, colB = st.columns(2)
+
+        with colA:
+            st.write("Income Distribution")
+            st.bar_chart(app_df['AMT_INCOME_TOTAL'].head(50))
+
+        with colB:
+            st.write("Age Distribution")
+            st.bar_chart(app_df['AGE'].value_counts())
+
+        st.subheader("Correlation")
+        corr = app_df.select_dtypes(include=np.number).corr()
+        st.dataframe(corr.style.background_gradient(cmap='Blues'))
+
 # =====================================================
-# 📂 BULK UPLOAD (FIXED)
+# 📂 TAB 2 - BULK
 # =====================================================
 with tab2:
 
-    st.subheader("Upload CSV")
+    st.subheader("Upload CSV for Bulk Prediction")
 
     sample = pd.DataFrame(columns=feature_names)
     st.download_button("Download Sample CSV", sample.to_csv(index=False), "sample.csv")
@@ -108,67 +187,24 @@ with tab2:
     if file:
         df = pd.read_csv(file)
 
-        st.write("Preview")
-        st.dataframe(df.head())
-
         try:
-            # ---------------- CLEAN ---------------- #
-            for col in df.select_dtypes(include='object'):
-                df[col] = df[col].astype(str).str.strip()
-
-            # ---------------- CREDIT SCORE ---------------- #
-            if "CREDIT_SCORE" in df.columns:
-                df['CREDIT_SCORE'] = df['CREDIT_SCORE'].apply(transform_credit)
-
-            # ---------------- ENCODE ---------------- #
-            df = preprocess_input(df)
-
-            # ---------------- FEATURE ALIGN ---------------- #
+            # ADD missing columns
             for col in feature_names:
                 if col not in df.columns:
                     df[col] = 0
 
             df = df[feature_names]
 
-            # ---------------- SCALE ---------------- #
             df_scaled = scaler.transform(df)
 
-            probs = model.predict_proba(df_scaled)[:,1] * 100
-
-            df['Decision'] = np.where(probs > 65, "Approved",
-                              np.where(probs < 45, "Rejected", "Borderline"))
-
+            probs = model.predict_proba(df_scaled)[:,1]
+            df['Prediction'] = np.where(probs > 0.65, "Approved", "Rejected")
             df['Confidence'] = probs
 
-            # ---------------- SUMMARY ---------------- #
-            st.markdown("### 📊 Summary")
-            st.metric("Total", len(df))
-            st.metric("Approved", (df['Decision']=="Approved").sum())
-            st.metric("Rejected", (df['Decision']=="Rejected").sum())
-
+            st.success("Processed Successfully")
             st.dataframe(df)
 
-            # ---------------- EDA ---------------- #
-            st.markdown("## 📊 Data Insights")
-
-            # Correlation
-            corr = df.corr(numeric_only=True)
-            fig, ax = plt.subplots()
-            cax = ax.matshow(corr)
-            fig.colorbar(cax)
-            st.pyplot(fig)
-
-            # Income distribution
-            if "AMT_INCOME_TOTAL" in df.columns:
-                fig, ax = plt.subplots()
-                ax.hist(df['AMT_INCOME_TOTAL'], bins=20)
-                st.pyplot(fig)
-
-            # Feature importance
-            if hasattr(model, "feature_importances_"):
-                st.markdown("### Feature Importance")
-                imp = pd.Series(model.feature_importances_, index=feature_names)
-                st.bar_chart(imp.sort_values(ascending=False))
+            st.bar_chart(df['Prediction'].value_counts())
 
         except Exception as e:
             st.error(f"Error: {e}")
