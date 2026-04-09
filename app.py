@@ -14,7 +14,6 @@ scaler = joblib.load("scaler.pkl")
 feature_names = joblib.load("features.pkl")
 
 # ---------------- HELPERS ---------------- #
-
 def safe_encode(col, value):
     le = encoders[col]
     if value in le.classes_:
@@ -95,7 +94,6 @@ tab1, tab2 = st.tabs(["🧍 Individual", "📂 Bulk Upload"])
 # 🧍 INDIVIDUAL
 # =====================================================
 with tab1:
-
     col1, col2, col3 = st.columns(3)
 
     with col1:
@@ -127,7 +125,6 @@ with tab1:
         st.warning("Fill all fields: " + ", ".join(errors))
 
     if st.button("Analyze", disabled=len(errors) > 0):
-
         credit_score_model = (900 - credit_score) / 100
 
         input_dict = {
@@ -145,15 +142,13 @@ with tab1:
 
         input_df = pd.DataFrame([input_dict])
 
-        # Fix columns
+        # Fix missing columns
         for col in feature_names:
             if col not in input_df.columns:
                 input_df[col] = 0
 
         input_df = input_df[feature_names]
-
         input_scaled = scaler.transform(input_df)
-
         prob = model.predict_proba(input_scaled)[0][1]
 
         # ⭐ SCORING
@@ -175,7 +170,6 @@ with tab1:
 
         # DISPLAY
         st.markdown("## 🎯 Result")
-
         if decision == "Approved":
             st.success("Approved")
         elif decision == "Rejected":
@@ -189,70 +183,14 @@ with tab1:
         st.markdown("### 🧠 Score Breakdown")
         st.progress(score)
         st.write(f"Score: {score}/100")
-
         for r in reasons:
             st.write(f"✔ {r}")
-        # =====================================================
-# 📊 INDIVIDUAL EDA (USER VS DATASET)
-# =====================================================
-
-st.markdown("## 📊 Your Profile Analysis")
-
-# ----------- COMPARISON METRICS ----------- #
-col1, col2 = st.columns(2)
-
-col1.metric("Your Income", f"₹{income:,}")
-col2.metric("Average Income", f"₹{int(app_df['AMT_INCOME_TOTAL'].mean()):,}")
-
-col1, col2 = st.columns(2)
-
-col1.metric("Your Age", age)
-col2.metric("Average Age", int(app_df['AGE'].mean()))
-
-# ----------- BAR COMPARISON ----------- #
-compare_df = pd.DataFrame({
-    "Metric": ["Income", "Age", "Employment"],
-    "You": [income, age, employment_years],
-    "Average": [
-        app_df['AMT_INCOME_TOTAL'].mean(),
-        app_df['AGE'].mean(),
-        app_df['EMPLOYMENT_YEARS'].mean()
-    ]
-})
-
-st.bar_chart(compare_df.set_index("Metric"))
-
-# ----------- DISTRIBUTION POSITION ----------- #
-st.subheader("Where You Stand")
-
-fig, ax = plt.subplots()
-
-ax.hist(app_df['AMT_INCOME_TOTAL'], bins=30)
-ax.axvline(income)  # your income line
-
-ax.set_title("Income Distribution (You vs Others)")
-st.pyplot(fig)
-
-# ----------- CREDIT SCORE ----------- #
-fig2, ax2 = plt.subplots()
-
-sample_scores = np.random.randint(300, 900, len(app_df))
-ax2.hist(sample_scores, bins=30)
-ax2.axvline(credit_score)
-
-ax2.set_title("Credit Score Position")
-st.pyplot(fig2)
 
 # =====================================================
-# 📂 BULK
-# =====================================================
-# =====================================================
-# 📂 BULK
+# 📂 BULK UPLOAD
 # =====================================================
 with tab2:
-
     st.subheader("Upload CSV")
-
     sample = pd.DataFrame({
         'CODE_GENDER': ['M'],
         'AMT_INCOME_TOTAL': [500000],
@@ -265,15 +203,12 @@ with tab2:
         'EMPLOYMENT_YEARS': [5],
         'CREDIT_SCORE': [700]
     })
-
     st.download_button("📥 Download Sample CSV", sample.to_csv(index=False), "sample.csv")
-
     file = st.file_uploader("Upload CSV", type=["csv"])
 
     if file:
         df_original = pd.read_csv(file)
         df = df_original.copy()
-
         st.write("Preview")
         st.dataframe(df_original.head())
 
@@ -282,7 +217,6 @@ with tab2:
             for col in df.select_dtypes(include='object'):
                 df[col] = df[col].astype(str).str.title()
 
-            # Save original credit score
             original_credit_score = df['CREDIT_SCORE'].copy()
 
             # ---------------- ENCODE ---------------- #
@@ -296,14 +230,13 @@ with tab2:
             for col in feature_names:
                 if col not in df.columns:
                     df[col] = 0
-
             df = df[feature_names]
 
             # Scale
             df_scaled = scaler.transform(df)
-
             probs = model.predict_proba(df_scaled)[:, 1]
 
+            # ---------------- FINAL DECISIONS ---------------- #
             decisions, confidences, scores, reasons_list = [], [], [], []
 
             for i in range(len(df)):
@@ -314,7 +247,6 @@ with tab2:
                 age = df.iloc[i]['AGE']
 
                 prob = probs[i]
-
                 score, reasons = calculate_score(income, credit_score_raw, emp, fam, age)
 
                 # FINAL DECISION
@@ -338,133 +270,29 @@ with tab2:
 
             # ---------------- FINAL OUTPUT ---------------- #
             result_df = df_original.copy()
-
             result_df['Decision'] = decisions
             result_df['Confidence (%)'] = confidences
             result_df['Score'] = scores
             result_df['Reasons'] = reasons_list
 
             st.success("Processed Successfully ✅")
-
-            # ---------------- STYLE ---------------- #
-            def highlight(row):
-                if row['Decision'] == "Approved":
-                    return ['background-color: #d4edda'] * len(row)
-                elif row['Decision'] == "Rejected":
-                    return ['background-color: #f8d7da'] * len(row)
-                else:
-                    return ['background-color: #fff3cd'] * len(row)
-
-            # ✅ Keep exact UI (no styling)
             st.dataframe(result_df)
 
-            # ---------------- DOWNLOAD BUTTON ---------------- #
-            csv = result_df.to_csv(index=False).encode('utf-8')
-
+            # ---------------- DOWNLOAD ---------------- #
             st.download_button(
                 "📥 Download Results CSV",
-                data=csv,
+                data=result_df.to_csv(index=False).encode('utf-8'),
                 file_name="credit_results.csv",
                 mime="text/csv"
             )
 
             # ---------------- SUMMARY ---------------- #
             st.markdown("### 📊 Summary")
-
             col1, col2, col3 = st.columns(3)
-
             col1.metric("Total", len(result_df))
             col2.metric("Approved", (result_df['Decision'] == "Approved").sum())
             col3.metric("Rejected", (result_df['Decision'] == "Rejected").sum())
-
             st.bar_chart(result_df['Decision'].value_counts())
 
         except Exception as e:
             st.error(f"Error: {e}")
-        # =====================================================
-# 📊 BULK EDA (RESULT-BASED)
-# =====================================================
-
-st.markdown("## 📊 Data Insights (Bulk Analysis)")
-
-# ---------------- DECISION DISTRIBUTION ---------------- #
-st.subheader("Decision Distribution")
-st.bar_chart(result_df['Decision'].value_counts())
-
-
-# ---------------- INCOME VS DECISION ---------------- #
-st.subheader("Income vs Decision")
-
-fig1, ax1 = plt.subplots()
-
-for decision in result_df['Decision'].unique():
-    subset = result_df[result_df['Decision'] == decision]
-    ax1.scatter(subset['AMT_INCOME_TOTAL'], subset['Confidence (%)'], label=decision)
-
-ax1.set_xlabel("Income")
-ax1.set_ylabel("Confidence (%)")
-ax1.legend()
-
-st.pyplot(fig1)
-
-
-# ---------------- CREDIT SCORE VS APPROVAL ---------------- #
-if 'CREDIT_SCORE' in result_df.columns:
-    st.subheader("Credit Score vs Decision")
-
-    fig2, ax2 = plt.subplots()
-
-    for decision in result_df['Decision'].unique():
-        subset = result_df[result_df['Decision'] == decision]
-        ax2.scatter(subset['CREDIT_SCORE'], subset['Confidence (%)'], label=decision)
-
-    ax2.set_xlabel("Credit Score")
-    ax2.set_ylabel("Confidence (%)")
-    ax2.legend()
-
-    st.pyplot(fig2)
-
-
-# ---------------- FAMILY IMPACT ---------------- #
-st.subheader("Family Members Impact")
-
-fig3, ax3 = plt.subplots()
-
-for decision in result_df['Decision'].unique():
-    subset = result_df[result_df['Decision'] == decision]
-    ax3.scatter(subset['CNT_FAM_MEMBERS'], subset['AMT_INCOME_TOTAL'], label=decision)
-
-ax3.set_xlabel("Family Members")
-ax3.set_ylabel("Income")
-ax3.legend()
-
-st.pyplot(fig3)
-
-
-# ---------------- CONFIDENCE DISTRIBUTION ---------------- #
-st.subheader("Confidence Distribution")
-
-fig4, ax4 = plt.subplots()
-ax4.hist(result_df['Confidence (%)'], bins=20)
-ax4.set_xlabel("Confidence %")
-st.pyplot(fig4)
-
-
-# ---------------- CORRELATION ---------------- #
-st.subheader("Correlation Heatmap")
-
-numeric_df = result_df.select_dtypes(include=np.number)
-
-if not numeric_df.empty:
-    corr = numeric_df.corr()
-
-    fig5, ax5 = plt.subplots()
-    cax = ax5.matshow(corr)
-    fig5.colorbar(cax)
-
-    ax5.set_xticks(range(len(corr.columns)))
-    ax5.set_yticks(range(len(corr.columns)))
-    ax5.set_xticklabels(corr.columns, rotation=90)
-    ax5.set_yticklabels(corr.columns)
-
-    st.pyplot(fig5)
