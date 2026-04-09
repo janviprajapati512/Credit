@@ -88,7 +88,7 @@ def calculate_score(income, credit_score, employment_years, family_members, age)
 st.title("💳 CreditCheck AI")
 st.subheader("AI + Rule-Based Credit Approval System")
 
-tab1, tab2 = st.tabs(["🧍 Individual", "📂 Bulk Upload"])
+tab1, tab2 = st.tabs(["Individual", "Bulk Upload"])
 
 # =====================================================
 # 🧍 INDIVIDUAL
