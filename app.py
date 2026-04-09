@@ -192,6 +192,56 @@ with tab1:
 
         for r in reasons:
             st.write(f"✔ {r}")
+        # =====================================================
+# 📊 INDIVIDUAL EDA (USER VS DATASET)
+# =====================================================
+
+st.markdown("## 📊 Your Profile Analysis")
+
+# ----------- COMPARISON METRICS ----------- #
+col1, col2 = st.columns(2)
+
+col1.metric("Your Income", f"₹{income:,}")
+col2.metric("Average Income", f"₹{int(app_df['AMT_INCOME_TOTAL'].mean()):,}")
+
+col1, col2 = st.columns(2)
+
+col1.metric("Your Age", age)
+col2.metric("Average Age", int(app_df['AGE'].mean()))
+
+# ----------- BAR COMPARISON ----------- #
+compare_df = pd.DataFrame({
+    "Metric": ["Income", "Age", "Employment"],
+    "You": [income, age, employment_years],
+    "Average": [
+        app_df['AMT_INCOME_TOTAL'].mean(),
+        app_df['AGE'].mean(),
+        app_df['EMPLOYMENT_YEARS'].mean()
+    ]
+})
+
+st.bar_chart(compare_df.set_index("Metric"))
+
+# ----------- DISTRIBUTION POSITION ----------- #
+st.subheader("Where You Stand")
+
+fig, ax = plt.subplots()
+
+ax.hist(app_df['AMT_INCOME_TOTAL'], bins=30)
+ax.axvline(income)  # your income line
+
+ax.set_title("Income Distribution (You vs Others)")
+st.pyplot(fig)
+
+# ----------- CREDIT SCORE ----------- #
+fig2, ax2 = plt.subplots()
+
+sample_scores = np.random.randint(300, 900, len(app_df))
+ax2.hist(sample_scores, bins=30)
+ax2.axvline(credit_score)
+
+ax2.set_title("Credit Score Position")
+st.pyplot(fig2)
 
 # =====================================================
 # 📂 BULK
@@ -331,46 +381,73 @@ with tab2:
 
         except Exception as e:
             st.error(f"Error: {e}")
+        # =====================================================
+# 📊 BULK EDA (RESULT-BASED)
 # =====================================================
-# 📊 EDA VISUALIZATION
-# =====================================================
 
-st.markdown("## 📊 Data Analysis & Insights")
-
-# ---------------- INCOME DISTRIBUTION ---------------- #
-st.subheader("Income Distribution")
-
-fig1, ax1 = plt.subplots()
-ax1.hist(result_df['AMT_INCOME_TOTAL'], bins=20)
-ax1.set_xlabel("Income")
-ax1.set_ylabel("Count")
-st.pyplot(fig1)
-
-
-# ---------------- CREDIT SCORE ---------------- #
-if 'CREDIT_SCORE' in result_df.columns:
-    st.subheader("Credit Score Distribution")
-
-    fig2, ax2 = plt.subplots()
-    ax2.hist(result_df['CREDIT_SCORE'], bins=20)
-    ax2.set_xlabel("Credit Score")
-    st.pyplot(fig2)
-
-
-# ---------------- FAMILY VS INCOME ---------------- #
-st.subheader("Family Members vs Income")
-
-fig3, ax3 = plt.subplots()
-ax3.scatter(result_df['CNT_FAM_MEMBERS'], result_df['AMT_INCOME_TOTAL'])
-ax3.set_xlabel("Family Members")
-ax3.set_ylabel("Income")
-st.pyplot(fig3)
-
+st.markdown("## 📊 Data Insights (Bulk Analysis)")
 
 # ---------------- DECISION DISTRIBUTION ---------------- #
 st.subheader("Decision Distribution")
-
 st.bar_chart(result_df['Decision'].value_counts())
+
+
+# ---------------- INCOME VS DECISION ---------------- #
+st.subheader("Income vs Decision")
+
+fig1, ax1 = plt.subplots()
+
+for decision in result_df['Decision'].unique():
+    subset = result_df[result_df['Decision'] == decision]
+    ax1.scatter(subset['AMT_INCOME_TOTAL'], subset['Confidence (%)'], label=decision)
+
+ax1.set_xlabel("Income")
+ax1.set_ylabel("Confidence (%)")
+ax1.legend()
+
+st.pyplot(fig1)
+
+
+# ---------------- CREDIT SCORE VS APPROVAL ---------------- #
+if 'CREDIT_SCORE' in result_df.columns:
+    st.subheader("Credit Score vs Decision")
+
+    fig2, ax2 = plt.subplots()
+
+    for decision in result_df['Decision'].unique():
+        subset = result_df[result_df['Decision'] == decision]
+        ax2.scatter(subset['CREDIT_SCORE'], subset['Confidence (%)'], label=decision)
+
+    ax2.set_xlabel("Credit Score")
+    ax2.set_ylabel("Confidence (%)")
+    ax2.legend()
+
+    st.pyplot(fig2)
+
+
+# ---------------- FAMILY IMPACT ---------------- #
+st.subheader("Family Members Impact")
+
+fig3, ax3 = plt.subplots()
+
+for decision in result_df['Decision'].unique():
+    subset = result_df[result_df['Decision'] == decision]
+    ax3.scatter(subset['CNT_FAM_MEMBERS'], subset['AMT_INCOME_TOTAL'], label=decision)
+
+ax3.set_xlabel("Family Members")
+ax3.set_ylabel("Income")
+ax3.legend()
+
+st.pyplot(fig3)
+
+
+# ---------------- CONFIDENCE DISTRIBUTION ---------------- #
+st.subheader("Confidence Distribution")
+
+fig4, ax4 = plt.subplots()
+ax4.hist(result_df['Confidence (%)'], bins=20)
+ax4.set_xlabel("Confidence %")
+st.pyplot(fig4)
 
 
 # ---------------- CORRELATION ---------------- #
@@ -381,13 +458,13 @@ numeric_df = result_df.select_dtypes(include=np.number)
 if not numeric_df.empty:
     corr = numeric_df.corr()
 
-    fig4, ax4 = plt.subplots()
-    cax = ax4.matshow(corr)
-    fig4.colorbar(cax)
+    fig5, ax5 = plt.subplots()
+    cax = ax5.matshow(corr)
+    fig5.colorbar(cax)
 
-    ax4.set_xticks(range(len(corr.columns)))
-    ax4.set_yticks(range(len(corr.columns)))
-    ax4.set_xticklabels(corr.columns, rotation=90)
-    ax4.set_yticklabels(corr.columns)
+    ax5.set_xticks(range(len(corr.columns)))
+    ax5.set_yticks(range(len(corr.columns)))
+    ax5.set_xticklabels(corr.columns, rotation=90)
+    ax5.set_yticklabels(corr.columns)
 
-    st.pyplot(fig4)
+    st.pyplot(fig5)
