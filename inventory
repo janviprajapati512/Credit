@@ -1,0 +1,594 @@
+{
+  "inventory": [
+    {
+      "originalGroupId": 1,
+      "originalGroupName": "Apple",
+      "originalGroupRating": 4.8,
+      "originalGroupStock": 371,
+      "categories": [
+        {
+          "categoryId": 1,
+          "categoryName": "Mobile Phones",
+          "subCategories": [
+            {
+              "subCategoryId": 101,
+              "subCategoryName": "iOS Phones",
+              "subCategoryStock": 242,
+              "originalSubCategoryName": "Apple Mobile",
+              "operatingSystem": "iOS",
+              "brands": [
+                {
+                  "brandId": 1001,
+                  "brandName": "Apple",
+                  "brandRating": 4.8,
+                  "totalBrandStock": 371,
+                  "products": [
+                    {
+                      "productId": 5001,
+                      "productName": "iPhone 15 Pro",
+                      "is5G": true,
+                      "variants": [
+                        {
+                          "variantId": 1,
+                          "storage": "128 GB",
+                          "price": 139999,
+                          "quantity": 25,
+                          "discountPercentage": 10
+                        },
+                        {
+                          "variantId": 2,
+                          "storage": "256 GB",
+                          "price": 149999,
+                          "quantity": 18,
+                          "discountPercentage": 0
+                        },
+                        {
+                          "variantId": 3,
+                          "storage": "512 GB",
+                          "price": 164999,
+                          "quantity": 12,
+                          "discountPercentage": 15
+                        },
+                        {
+                          "variantId": 4,
+                          "storage": "1 TB",
+                          "price": 184999,
+                          "quantity": 5,
+                          "discountPercentage": 0
+                        }
+                      ]
+                    },
+                    {
+                      "productId": 5002,
+                      "productName": "iPhone 15",
+                      "is5G": true,
+                      "variants": [
+                        {
+                          "variantId": 5,
+                          "storage": "128 GB",
+                          "price": 79999,
+                          "quantity": 30,
+                          "discountPercentage": 0
+                        },
+                        {
+                          "variantId": 6,
+                          "storage": "256 GB",
+                          "price": 89999,
+                          "quantity": 20,
+                          "discountPercentage": 8
+                        },
+                        {
+                          "variantId": 7,
+                          "storage": "512 GB",
+                          "price": 99999,
+                          "quantity": 10,
+                          "discountPercentage": 0
+                        }
+                      ]
+                    },
+                    {
+                      "productId": 5003,
+                      "productName": "iPhone 14 Pro",
+                      "is5G": true,
+                      "variants": [
+                        {
+                          "variantId": 8,
+                          "storage": "128 GB",
+                          "price": 109999,
+                          "quantity": 22,
+                          "discountPercentage": 0
+                        },
+                        {
+                          "variantId": 9,
+                          "storage": "256 GB",
+                          "price": 119999,
+                          "quantity": 15,
+                          "discountPercentage": 12
+                        },
+                        {
+                          "variantId": 10,
+                          "storage": "512 GB",
+                          "price": 134999,
+                          "quantity": 8,
+                          "discountPercentage": 0
+                        }
+                      ]
+                    },
+                    {
+                      "productId": 5004,
+                      "productName": "iPhone SE",
+                      "is5G": true,
+                      "variants": [
+                        {
+                          "variantId": 11,
+                          "storage": "64 GB",
+                          "price": 39999,
+                          "quantity": 40,
+                          "discountPercentage": 0
+                        },
+                        {
+                          "variantId": 12,
+                          "storage": "128 GB",
+                          "price": 45999,
+                          "quantity": 25,
+                          "discountPercentage": 0
+                        },
+                        {
+                          "variantId": 13,
+                          "storage": "256 GB",
+                          "price": 51999,
+                          "quantity": 12,
+                          "discountPercentage": 5
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "categoryId": 3,
+          "categoryName": "Tablets",
+          "subCategories": [
+            {
+              "subCategoryId": 201,
+              "subCategoryName": "iPad Tablets",
+              "subCategoryStock": 73,
+              "originalSubCategoryName": "Apple iPad",
+              "operatingSystem": "iPadOS",
+              "brands": [
+                {
+                  "brandId": 3001,
+                  "brandName": "Apple",
+                  "products": [
+                    {
+                      "productId": 7001,
+                      "productName": "iPad Air",
+                      "variants": [
+                        {
+                          "variantId": 24,
+                          "storage": "64 GB",
+                          "price": 59999,
+                          "quantity": 20,
+                          "discountPercentage": 0
+                        },
+                        {
+                          "variantId": 25,
+                          "storage": "128 GB",
+                          "price": 69999,
+                          "quantity": 15,
+                          "discountPercentage": 0
+                        },
+                        {
+                          "variantId": 26,
+                          "storage": "256 GB",
+                          "price": 79999,
+                          "quantity": 10,
+                          "discountPercentage": 8
+                        }
+                      ]
+                    },
+                    {
+                      "productId": 7002,
+                      "productName": "iPad Pro",
+                      "variants": [
+                        {
+                          "variantId": 27,
+                          "storage": "128 GB",
+                          "price": 99999,
+                          "quantity": 12,
+                          "discountPercentage": 0
+                        },
+                        {
+                          "variantId": 28,
+                          "storage": "256 GB",
+                          "price": 109999,
+                          "quantity": 10,
+                          "discountPercentage": 0
+                        },
+                        {
+                          "variantId": 29,
+                          "storage": "512 GB",
+                          "price": 129999,
+                          "quantity": 6,
+                          "discountPercentage": 0
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "categoryId": 4,
+          "categoryName": "Laptops",
+          "subCategories": [
+            {
+              "subCategoryId": 301,
+              "subCategoryName": "macOS Laptops",
+              "subCategoryStock": 56,
+              "originalSubCategoryName": "Apple MacBook",
+              "operatingSystem": "macOS",
+              "brands": [
+                {
+                  "brandId": 5001,
+                  "brandName": "Apple",
+                  "products": [
+                    {
+                      "productId": 9001,
+                      "productName": "MacBook Air M3",
+                      "variants": [
+                        {
+                          "variantId": 35,
+                          "storage": "256 GB",
+                          "price": 114999,
+                          "quantity": 18,
+                          "discountPercentage": 0
+                        },
+                        {
+                          "variantId": 36,
+                          "storage": "512 GB",
+                          "price": 134999,
+                          "quantity": 12,
+                          "discountPercentage": 0
+                        },
+                        {
+                          "variantId": 37,
+                          "storage": "1 TB",
+                          "price": 159999,
+                          "quantity": 8,
+                          "discountPercentage": 10
+                        }
+                      ]
+                    },
+                    {
+                      "productId": 9002,
+                      "productName": "MacBook Pro M4",
+                      "variants": [
+                        {
+                          "variantId": 38,
+                          "storage": "512 GB",
+                          "price": 189999,
+                          "quantity": 9,
+                          "discountPercentage": 0
+                        },
+                        {
+                          "variantId": 39,
+                          "storage": "1 TB",
+                          "price": 219999,
+                          "quantity": 6,
+                          "discountPercentage": 0
+                        },
+                        {
+                          "variantId": 40,
+                          "storage": "2 TB",
+                          "price": 259999,
+                          "quantity": 3,
+                          "discountPercentage": 0
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "originalGroupId": 2,
+      "originalGroupName": "Android",
+      "originalGroupRating": 4.6,
+      "originalGroupStock": 308,
+      "categories": [
+        {
+          "categoryId": 2,
+          "categoryName": "Mobile Phones",
+          "subCategories": [
+            {
+              "subCategoryId": 102,
+              "subCategoryName": "Android Phones",
+              "subCategoryStock": 189,
+              "originalSubCategoryName": "Android Mobile",
+              "operatingSystem": "Android",
+              "brands": [
+                {
+                  "brandId": 2001,
+                  "brandName": "Samsung",
+                  "brandRating": 4.6,
+                  "products": [
+                    {
+                      "productId": 6001,
+                      "productName": "Samsung S24 Ultra",
+                      "is5G": true,
+                      "variants": [
+                        {
+                          "variantId": 14,
+                          "storage": "256 GB",
+                          "price": 124999,
+                          "quantity": 30,
+                          "discountPercentage": 0
+                        },
+                        {
+                          "variantId": 15,
+                          "storage": "512 GB",
+                          "price": 139999,
+                          "quantity": 20,
+                          "discountPercentage": 12
+                        },
+                        {
+                          "variantId": 16,
+                          "storage": "1 TB",
+                          "price": 159999,
+                          "quantity": 8,
+                          "discountPercentage": 0
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "brandId": 2002,
+                  "brandName": "OnePlus",
+                  "brandRating": 4.6,
+                  "products": [
+                    {
+                      "productId": 6002,
+                      "productName": "OnePlus 12",
+                      "is5G": true,
+                      "variants": [
+                        {
+                          "variantId": 17,
+                          "storage": "128 GB",
+                          "price": 59999,
+                          "quantity": 25,
+                          "discountPercentage": 5
+                        },
+                        {
+                          "variantId": 18,
+                          "storage": "256 GB",
+                          "price": 64999,
+                          "quantity": 18,
+                          "discountPercentage": 0
+                        },
+                        {
+                          "variantId": 19,
+                          "storage": "512 GB",
+                          "price": 74999,
+                          "quantity": 10,
+                          "discountPercentage": 0
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "brandId": 2003,
+                  "brandName": "Google",
+                  "brandRating": 4.6,
+                  "products": [
+                    {
+                      "productId": 6003,
+                      "productName": "Google Pixel 9",
+                      "is5G": true,
+                      "variants": [
+                        {
+                          "variantId": 20,
+                          "storage": "128 GB",
+                          "price": 79999,
+                          "quantity": 22,
+                          "discountPercentage": 0
+                        },
+                        {
+                          "variantId": 21,
+                          "storage": "256 GB",
+                          "price": 89999,
+                          "quantity": 12,
+                          "discountPercentage": 10
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "brandId": 2004,
+                  "brandName": "Nothing",
+                  "brandRating": 4.6,
+                  "products": [
+                    {
+                      "productId": 6004,
+                      "productName": "Nothing Phone 3",
+                      "is5G": true,
+                      "variants": [
+                        {
+                          "variantId": 22,
+                          "storage": "128 GB",
+                          "price": 49999,
+                          "quantity": 30,
+                          "discountPercentage": 0
+                        },
+                        {
+                          "variantId": 23,
+                          "storage": "256 GB",
+                          "price": 55999,
+                          "quantity": 14,
+                          "discountPercentage": 0
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "categoryId": 3,
+          "categoryName": "Tablets",
+          "subCategories": [
+            {
+              "subCategoryId": 202,
+              "subCategoryName": "Android Tablets",
+              "subCategoryStock": 73,
+              "originalSubCategoryName": "Android Tablet",
+              "operatingSystem": "Android",
+              "brands": [
+                {
+                  "brandId": 4001,
+                  "brandName": "Samsung",
+                  "products": [
+                    {
+                      "productId": 8001,
+                      "productName": "Samsung Galaxy Tab S10",
+                      "variants": [
+                        {
+                          "variantId": 30,
+                          "storage": "128 GB",
+                          "price": 64999,
+                          "quantity": 20,
+                          "discountPercentage": 0
+                        },
+                        {
+                          "variantId": 31,
+                          "storage": "256 GB",
+                          "price": 74999,
+                          "quantity": 12,
+                          "discountPercentage": 0
+                        },
+                        {
+                          "variantId": 32,
+                          "storage": "512 GB",
+                          "price": 89999,
+                          "quantity": 6,
+                          "discountPercentage": 0
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "brandId": 4002,
+                  "brandName": "Xiaomi",
+                  "products": [
+                    {
+                      "productId": 8002,
+                      "productName": "Xiaomi Pad 7",
+                      "variants": [
+                        {
+                          "variantId": 33,
+                          "storage": "128 GB",
+                          "price": 34999,
+                          "quantity": 25,
+                          "discountPercentage": 0
+                        },
+                        {
+                          "variantId": 34,
+                          "storage": "256 GB",
+                          "price": 42999,
+                          "quantity": 10,
+                          "discountPercentage": 5
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "categoryId": 4,
+          "categoryName": "Laptops",
+          "subCategories": [
+            {
+              "subCategoryId": 302,
+              "subCategoryName": "ChromeOS / Android Laptops",
+              "subCategoryStock": 46,
+              "originalSubCategoryName": "Android Laptop",
+              "operatingSystem": "ChromeOS",
+              "brands": [
+                {
+                  "brandId": 6001,
+                  "brandName": "Samsung",
+                  "products": [
+                    {
+                      "productId": 10001,
+                      "productName": "Samsung Galaxy Book",
+                      "variants": [
+                        {
+                          "variantId": 41,
+                          "storage": "512 GB",
+                          "price": 89999,
+                          "quantity": 14,
+                          "discountPercentage": 0
+                        },
+                        {
+                          "variantId": 42,
+                          "storage": "1 TB",
+                          "price": 109999,
+                          "quantity": 9,
+                          "discountPercentage": 0
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "brandId": 6002,
+                  "brandName": "Asus",
+                  "products": [
+                    {
+                      "productId": 10002,
+                      "productName": "Asus Chromebook Plus",
+                      "variants": [
+                        {
+                          "variantId": 43,
+                          "storage": "256 GB",
+                          "price": 54999,
+                          "quantity": 15,
+                          "discountPercentage": 0
+                        },
+                        {
+                          "variantId": 44,
+                          "storage": "512 GB",
+                          "price": 69999,
+                          "quantity": 8,
+                          "discountPercentage": 7
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
